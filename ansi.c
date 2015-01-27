@@ -1,53 +1,129 @@
-//#define PERL_NO_GET_CONTEXT     /* we want efficiency */
-//#include "EXTERN.h"
-//#include "perl.h"
-//#include "XSUB.h"
+/*
+ANSI|pipe SOURCE
+================
+ANSI|pipe is derived from the following sources:
+* Win32::Console::ANSI Perl extension by J-L Morel
+* dualsubsystem by gaber...@gmail.com, based on work by Richard Eperjesi
+* further additions and modifications by Rob Hagemans
 
-//#include "ppport.h"
+The original copyright and licence notices for the contributing sources
+can be found below.
+
+The modifications are copyright (c) 2015 Rob Hagemans.
+The resulting file is released under the terms below.
+
+LICENCE
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of
+1)  the GNU General Public License, version 2,
+    as published by the Free Software Foundation; or, at your option,
+2)  the GNU General Public License, version 3, 
+    as published by the Free Software Foundation; or, at your option,
+3)  the Artistic License as distributed with the Perl Kit.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along
+with this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. 
+*/
+
+/*
+ORIGINAL SOURCE: Win32::Console::ANSI
+=====================================
+The following is a list of modifications of Win32::Console::ANSI
+(RH 2015-01-27) Removed all DLL-related and API hooking code.
+(RH 2015-01-27) Added #define macros to allow compilation under MinGW GCC.
+(RH 2015-01-27) Added ansi_ API functions. 
+
+Below are the original copyright and licence notices of Win32::Console::ANSI.
+Please note that the present modified file is released under slightly more 
+restrictive terms, which are stated above. - RH
+
+AUTHOR
+
+J-L Morel <jl_morel@bribes.org>
+Home page: http://www.bribes.org/perl/wANSIConsole.html
+
+COPYRIGHT
+
+Copyright (c) 2003-2014 J-L Morel. All rights reserved.
+
+LICENCE
+
+This distribution is free software; you can redistribute it and/or modify it
+under the same terms as Perl itself, i.e. under the terms of either:
+
+a) the GNU General Public License as published by the Free Software Foundation,
+   either version 1, or (at your option) any later version; or
+
+b) the Artistic License as distributed with the Perl Kit.
+
+This distribution is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE.  See either the GNU General Public License or the
+Artistic License for more details.
+
+You should have received a copy of the GNU General Public License with this
+distribution in the file named "Copying".  If not, write to the Free Software
+Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307, USA or
+visit their web page on the internet at http://www.gnu.org/licenses/gpl.html or
+the Perl web page at http://dev.perl.org/licenses/gpl1.html.
+
+You should also have received a copy of the Artistic License with this
+distribution, in the file named "Artistic".  If not, visit the Perl web page on
+the internet at http://dev.perl.org/licenses/artistic.html.
+*/
+
+/*
+ORIGINAL SOURCE: dualsubsystem
+==============================
+dualsubsystem can be found at https://code.google.com/p/dualsubsystem/.
+I have not been able to find a copyright notice by dualsubsystem's author,
+who is identified on Google Code as 
+gaber...@gmail.com, https://code.google.com/u/112032256711997475328/. 
+Below follow the licence and notices from this project that appear relevant.
+Please note that the present modified file is released under more 
+restrictive terms, which are stated above. - RH
+
+SUMMARY
+
+dualsubsystem is an update on a code written by Richard Eperjesi that provides 
+the best of both worlds with the trick of using a same-named ".com" executable 
+to handle the stdin/stdout/stderr redirection to the active console.
+
+MIT LICENSE
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+*/
 
 #define _WIN32_WINNT 0x0500
 #include <windows.h>
-//#include <ImageHlp.h>
-//#include <tlhelp32.h>
-
-//#ifndef MIIM_BITMAP
-//#error your SDK is too old... (see the README file in the distro)
-//#endif
-
-// ========== Auxiliary debug function
-// See DebugView from SysInternals:
-// http://technet.microsoft.com/fr-fr/sysinternals/bb896647(en-us).aspx
-
-#define MYDEBUG 0
-
-#if (MYDEBUG > 0)
-void DEBUGSTR( char * szFormat, ...) {  // sort of OutputDebugStringf
-  char szBuffer[1024];
-  va_list pArgList;
-  va_start(pArgList, szFormat);
-  _vsnprintf(szBuffer, sizeof(szBuffer), szFormat, pArgList);
-  va_end(pArgList);
-  OutputDebugString(szBuffer);
-}
-#else
-#define DEBUGSTR //DEBUGSTR
-#endif
+#include <stdio.h>
 
 // ========== Global variables and constants
 
-// Macro for adding pointers/DWORDs together without C arithmetic interfering
-#define MakePtr( cast, ptr, addValue ) (cast)( (DWORD_PTR)(ptr)+(DWORD)(addValue))
-
-//HINSTANCE hDllInstance;         // Dll instance handle
-//HWND hConWnd;                   // Console window handle
 HANDLE hConOut;                 // handle to CONOUT$
-//BOOL bIsWin9x;
-//HMENU hSysMenu;                 // handle to console system menu
-MENUITEMINFO CloseMenuItemInfo; // close menu item
-int CloseMenuItemPos = -1;      // close menu item position
-                                // prototype for SetConsoleDisplayMode()
-typedef BOOL (WINAPI *SETCONDISPMODE)(HANDLE, DWORD, PCOORD);
-SETCONDISPMODE pfnSetConDispMode;
 
 #define ESC     '\x1B'          // ESCape character
 #define LF      '\x0A'          // Line Feed
@@ -164,7 +240,6 @@ void PushBuffer( char c)
   ChBuffer[nCharInBuffer++] = concealed ? ' ' : c;
   if (nCharInBuffer >= BUFFER_SIZE) {
     FlushBuffer();
-    DEBUGSTR("flush");
   }
 }
 
@@ -216,8 +291,6 @@ void InterpretEscSeq( )
             case 0 :
               foreground = foreground_default;
               background = background_default;
-              DEBUGSTR("resetting foreground to  = 0x%.8x", foreground);
-              DEBUGSTR("resetting background to  = 0x%.8x", background);
               bold = 0;
               underline = 0;
               rvideo = 0;
@@ -250,10 +323,8 @@ void InterpretEscSeq( )
           }
           if ( (30 <= es_argv[i]) && (es_argv[i] <= 37) ) {
             foreground = es_argv[i]-30;
-            DEBUGSTR("setting foreground to = 0x%.8x", foreground);
           }
           if ( (40 <= es_argv[i]) && (es_argv[i] <= 47) ) {
-            DEBUGSTR("setting background to = 0x%.8x", background);
             background = es_argv[i]-40;
           }
         }
@@ -261,7 +332,6 @@ void InterpretEscSeq( )
         else attribut = foregroundcolor[foreground] | backgroundcolor[background];
         if (bold) attribut |= FOREGROUND_INTENSITY;
         if (underline) attribut |= BACKGROUND_INTENSITY;
-        DEBUGSTR("set console color to = 0x%.8x", attribut);
         SetConsoleTextAttribute(hConOut, attribut);
         return;
 
@@ -673,40 +743,6 @@ ParseAndPrintString(HANDLE hDev,
   }
   for(i=nNumberOfBytesToWrite, s=(char *)lpBuffer; i>0; i--, s++) {
     if (state==1) {
-      // Under Win9x, at each new line, the console fills the end of the line with
-      // the default attribute. We correct this behavior here.
-
-/*      if ( bIsWin9x && (*s == LF) ) {
-        CONSOLE_SCREEN_BUFFER_INFO Info;
-        COORD Pos = {0, 0};
-        SMALL_RECT Rect;
-        CHAR_INFO CharInfo;
-
-        FlushBuffer();
-        GetConsoleScreenBufferInfo(hConOut, &Info);
-        Info.dwCursorPosition.Y++;
-        if ( Info.dwCursorPosition.Y < Info.dwSize.Y ){
-          Info.dwCursorPosition.X = 0;
-          SetConsoleCursorPosition(hConOut, Info.dwCursorPosition);
-        }
-        else {
-          Rect.Left   = 0;
-          Rect.Top    = 1;
-          Rect.Right  = Info.dwSize.X-1;
-          Rect.Bottom = Info.dwSize.Y-1;
-          CharInfo.Char.AsciiChar = ' ';
-          CharInfo.Attributes = Info.wAttributes;
-          ScrollConsoleScreenBuffer(
-            hConOut,
-            &Rect,
-            NULL,
-            Pos,
-            &CharInfo);
-          Pos.Y = Info.dwSize.Y-1;
-          SetConsoleCursorPosition(hConOut, Pos);
-        }
-      }
-      else */ 
       if (*s == ESC) state = 2;
       else PushBuffer(*s);
     }
@@ -767,15 +803,48 @@ ParseAndPrintString(HANDLE hDev,
   return (i == 0);
 }
 
+//-----------------------------------------------------------------------------
+// 
+//  ANSI|pipe API functions
+//  Rob Hagemans 2015
+// 
+//-----------------------------------------------------------------------------
+ 
+// stored initial console attribute
+WORD init_attribute;
+// console window handle
+HWND console;
 
-int main(void)
+void ansi_init()
 {
-    char test[20] = "test string\0";
-    long num_written = 0;
-    HWND console = GetConsoleWindow();
-    ParseAndPrintString(console, test, 20, &num_written);
-    printf("%d", num_written);
-    return 0 ;
+    hConOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    console = GetConsoleWindow();
+    // save initial console attributes
+    CONSOLE_SCREEN_BUFFER_INFO Info;
+    GetConsoleScreenBufferInfo(hConOut, &Info);
+    init_attribute = Info.wAttributes; 
+}
+
+void ansi_close()
+{
+    // restore console attributes
+    SetConsoleTextAttribute(hConOut, init_attribute);
+}
+
+void ansi_print(char *buffer, long len)
+{
+    long dummy = 0;
+    ParseAndPrintString(console, buffer, len, &dummy);
+}
+
+
+int main()
+{
+    char test[40] = "test \x1b[31;44mstr\x1b[0mß\0";
+    ansi_init();
+    ansi_print(test, 40);
+    ansi_close();
+    return 0;
 }
     
 
