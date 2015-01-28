@@ -24,7 +24,7 @@ functions that are likely to be unfamiliar.
 ANSI|pipe consists of a small binary that you can distribute with your compiled
 code. It intercepts the standard I/O streams, converting between UTF-8 on the
 app's side and UTF-16 on Windows' side and translating any ANSI sequences 
-the apps write to its standard output into Windows console API calls. To port
+the app writes to its standard output into Windows console API calls. To port
 to Windows, application code only needs to include one tiny header file and 
 call a single initialising function, which re-routes standard I/O to a named
 pipe.  
@@ -40,9 +40,9 @@ the File Manager can use the .EXE and avoid a console window.
 ## Acknowledgements
 
 ANSI|pipe merges part of two existing projects:
--   [**Win32::Console::ANSI**](http://search.cpan.org/~jlmorel/Win32-Console-ANSI-1.08/lib/Win32/Console/ANSI.pm)
-    by **J-L Morel** that implements ANSI escape 
-    sequences on the Windows console for Perl.  
+-   [**Win32::Console::ANSI**](http://search.cpan.org/~jlmorel/Win32-Console-ANSI-1.08/lib/Win32/Console/ANSI.pm),
+    a Perl extension by **J-L Morel** which implements ANSI escape 
+    sequences on the Windows console.  
 -   [**dualsubsystem**](https://code.google.com/p/dualsubsystem/), a utility by 
     **`gaber...@gmail.com`** based on code by **Richard Eperjesi**, which
     sends standard I/O through named pipes to a .COM file that handles it.  
