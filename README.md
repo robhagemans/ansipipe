@@ -53,9 +53,9 @@ me know.
 
 ## Copyrights
 
-**Win32::Console::ANSI**, copyright (c) 2003-2014 J-L Morel.
-**dualsubsystem**, copyright (c) `gaber...@gmail.com` and Richard Eperjesi.
-**ANSI|pipe**, copyright (c) 2015 Rob Hagemans.
+**Win32::Console::ANSI**, copyright (c) 2003-2014 J-L Morel.  
+**dualsubsystem**, copyright (c) `gaber...@gmail.com` and Richard Eperjesi.  
+**ANSI|pipe**, copyright (c) 2015 Rob Hagemans.  
 
 ## Licence
      
