@@ -26,11 +26,9 @@ bool ansipipe_init(bool create)
 
       // attach named pipes to stdin/stdout/stderr
       bool rc = false;
-      char achar[4] = "a\0\0\0";
-      char rchar[4] = "r\0\0\0";
-      rc = freopen(name_out, &achar[0], stdout) != NULL;
-      rc = rc && freopen(name_in, &rchar[0], stdin) != NULL;
-      rc = rc && freopen(name_err, &achar[0], stderr) != NULL;
+      rc = freopen(name_out, "a", stdout) != NULL;
+      rc = rc && freopen(name_in, "r", stdin) != NULL;
+      rc = rc && freopen(name_err, "a", stderr) != NULL;
 
       if (rc) ios::sync_with_stdio();
       return rc;
