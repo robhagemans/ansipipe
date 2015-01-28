@@ -36,9 +36,11 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 ORIGINAL SOURCE: Win32::Console::ANSI
 =====================================
 The following is a list of modifications of Win32::Console::ANSI
-(RH 2015-01-27) Removed all DLL-related and API hooking code.
-(RH 2015-01-27) Added #define macros to allow compilation under MinGW GCC.
-(RH 2015-01-27) Added ansi_ API functions. 
+(RH 2015-01-27) Remove DLL injection and API hooking code
+(RH 2015-01-27) Remove Win9x support code
+(RH 2015-01-27) Add #define macros to allow compilation under MinGW GCC
+(RH 2015-01-27) Add ansi_ API functions 
+(RH 2015-01-28) Change signature of ParseAndPrint to work with one hDev only
 
 Below are the original copyright and licence notices of Win32::Console::ANSI.
 Please note that the present modified file is released under slightly more 
@@ -125,6 +127,7 @@ THE SOFTWARE.
 // ========== Global variables and constants
 
 HANDLE hConOut;                 // handle to CONOUT$
+HANDLE hDev;                    // output device
 
 #define ESC     '\x1B'          // ESCape character
 #define LF      '\x0A'          // Line Feed
@@ -211,9 +214,7 @@ COORD SavePos = {0, 0};
 #define BUFFER_SIZE 256
 
 int nCharInBuffer = 0;
-//char  ChBuffer[BUFFER_SIZE];
 WCHAR ChBuffer[BUFFER_SIZE];
-//WCHAR WcBuffer[BUFFER_SIZE];
 
 //-----------------------------------------------------------------------------
 //   FlushBuffer()
@@ -237,7 +238,6 @@ void FlushBuffer( )
 // Adds a character in the buffer and flushes the buffer if it is full
 //-----------------------------------------------------------------------------
 
-//void PushBuffer( char c)
 void PushBuffer(WCHAR c)
 {
   ChBuffer[nCharInBuffer++] = concealed ? ' ' : c;
@@ -718,7 +718,6 @@ void InterpretEscSeq( )
   }
 }
 
-HANDLE hCurrentDev = 0;     // handle to the current device
 
 //-----------------------------------------------------------------------------
 //   ParseAndPrintString(hDev, lpBuffer, nNumberOfBytesToWrite)
@@ -730,23 +729,15 @@ HANDLE hCurrentDev = 0;     // handle to the current device
 //-----------------------------------------------------------------------------
 
 BOOL
-ParseAndPrintString(HANDLE hDev,
-                    LPCVOID lpBuffer,
+ParseAndPrintString(LPCVOID lpBuffer,
                     DWORD nNumberOfBytesToWrite,
                     LPDWORD lpNumberOfBytesWritten
                     )
 {
   DWORD i;
-//  char * s;
   LPCTSTR s;
   
-  //dTHX;
-  if (hDev != hCurrentDev) {
-    hCurrentDev = hDev;
-    state = 1;            // reinit if device have changed
-  }
   for(i=nNumberOfBytesToWrite, s=(LPCTSTR)lpBuffer; i>0; i--, s++) {
-//  for(i=nNumberOfBytesToWrite, s=(char *)lpBuffer; i>0; i--, s++) {
     if (state==1) {
       if (*s == ESC) state = 2;
       else PushBuffer(*s);
@@ -817,17 +808,17 @@ ParseAndPrintString(HANDLE hDev,
  
 // stored initial console attribute
 WORD init_attribute;
-// console window handle
-HWND console;
 
 void ansi_init()
 {
     hConOut = GetStdHandle(STD_OUTPUT_HANDLE);
-    console = GetConsoleWindow();
+    hDev = GetConsoleWindow();
     // save initial console attributes
     CONSOLE_SCREEN_BUFFER_INFO Info;
     GetConsoleScreenBufferInfo(hConOut, &Info);
     init_attribute = Info.wAttributes; 
+    // initialise parser state
+    state = 1;
 }
 
 void ansi_close()
@@ -839,7 +830,7 @@ void ansi_close()
 void ansi_print(wchar_t *buffer)
 {
     long dummy = 0;
-    ParseAndPrintString(console, buffer, wcslen(buffer), &dummy);
+    ParseAndPrintString(buffer, wcslen(buffer), &dummy);
 }
 
 
