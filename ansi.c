@@ -124,6 +124,11 @@ THE SOFTWARE.
 #define _WIN32_WINNT 0x0500
 #include <windows.h>
 #include <stdio.h>
+#include <process.h> /*_beginthread, _endthread*/
+#include <string.h>
+
+// define bool, for C < C99
+typedef enum { false, true } bool;
 
 // ========== Global variables and constants
 
@@ -766,7 +771,7 @@ ParseAndPrintString(LPCVOID lpBuffer,
 
 //-----------------------------------------------------------------------------
 // 
-//  ANSI|pipe API functions
+//  ANSI|pipe glue functions
 //  Rob Hagemans 2015
 // 
 //-----------------------------------------------------------------------------
@@ -802,17 +807,188 @@ void ansi_print(char *buffer)
     ParseAndPrintString(wide_buffer, length);
 }
 
-
-int main()
+void utf8_fprint(FILE *stream, char *buffer)
 {
-    // Unicode works, but remember to set a Unicode-aware font on the console window.
-    // raster fonts will give strange results. 
-    // this assumes compiler interprets literals as UTF-8; mine does.
-    char *test = "\x1b[31;1mРусский\x1b[32;0m\x1b[1A中文\x1b[1B\x1b[34;45mPreußisch\x1b[36;47m\x1b[1Aελληνικά\x1b[1B\x1b[0m";
-    ansi_init();
-    ansi_print(test);
-    ansi_close();
-    return 0;
+    // get required buffer length
+    int length = MultiByteToWideChar(CP_UTF8, 0, buffer, -1, NULL, 0);
+    wchar_t wide_buffer[length];
+    // convert UTF-8 -> UTF-16
+    MultiByteToWideChar(CP_UTF8, 0, buffer, -1, (LPWSTR)wide_buffer, length);
+	fprintf(stream, "%S", wide_buffer);
+	fflush(stream);
 }
-    
+
+bool utf8_read(char *buffer, long buflen, long *count)
+{
+    // one fourth of buflen, as one wchar of utf16 is at most 4 chars of utf8
+    // (RFC 3629) so this should fit in the char buffer when expanded
+    wchar_t wide_buffer[buflen / 4];
+    long wcount;
+	if (!ReadConsole(GetStdHandle(STD_INPUT_HANDLE), wide_buffer, buflen / 4, &wcount, NULL))
+		return false;
+    int length = WideCharToMultiByte(CP_UTF8, 0, wide_buffer, -1, NULL, 0, NULL, NULL);
+    if (length >= buflen) {
+        fprintf(stderr, "ERROR: UTF-8 buffer overflow.\n");
+        return false;
+    }
+    WideCharToMultiByte(CP_UTF8, 0, wide_buffer, -1, buffer, length, NULL, NULL);
+    *count = length;
+    return true;
+}
+
+
+// ----------------------------------------------------------------------------
+//
+// named pipes
+// derived from dualsubsystem
+// 
+//-----------------------------------------------------------------------------
+
+HANDLE cout_pipe, cin_pipe, cerr_pipe;
+#define PIPES_TIMEOUT 1000
+#define PIPES_BUFLEN 1024
+#define ARG_BUFLEN 2048
+
+// Create named pipes for stdin, stdout and stderr
+// Parameter: process id
+bool pipes_create(long pid) 
+{
+	wchar_t name[256];
+	swprintf(name, L"\\\\.\\pipe\\%dcout", pid);
+	if (INVALID_HANDLE_VALUE == (cout_pipe = CreateNamedPipe(
+	            name, PIPE_ACCESS_INBOUND, PIPE_TYPE_BYTE | PIPE_READMODE_BYTE,
+		        1, PIPES_BUFLEN, PIPES_BUFLEN, PIPES_TIMEOUT, NULL)))
+		return 0;
+	swprintf(name, L"\\\\.\\pipe\\%dcin", pid);
+	if (INVALID_HANDLE_VALUE == (cin_pipe = CreateNamedPipe(
+	            name, PIPE_ACCESS_OUTBOUND, PIPE_TYPE_BYTE | PIPE_READMODE_BYTE,
+				1, PIPES_BUFLEN, PIPES_BUFLEN, PIPES_TIMEOUT, NULL)))
+		return 0;
+	swprintf(name, L"\\\\.\\pipe\\%dcerr", pid);
+	if (INVALID_HANDLE_VALUE == (cerr_pipe = CreateNamedPipe(
+	            name, PIPE_ACCESS_INBOUND, PIPE_TYPE_BYTE | PIPE_READMODE_BYTE,
+				1, PIPES_BUFLEN, PIPES_BUFLEN, PIPES_TIMEOUT, NULL)))
+		return 0;
+	return 1;
+}
+
+// Close all named pipes
+void pipes_close() 
+{
+    // Give pipes a chance to flush
+    Sleep(100);
+	CloseHandle(cout_pipe);
+	CloseHandle(cerr_pipe);
+	CloseHandle(cin_pipe);
+}
+
+// Thread function that handles incoming bytestreams to be output on stdout
+void pipes_cout_thread(void* dummy) 
+{
+    // we're sending UTF-8 through these pipes
+	char buffer[PIPES_BUFLEN];
+	long count = 0;
+	ConnectNamedPipe(cout_pipe, NULL);
+	while (ReadFile(cout_pipe, buffer, PIPES_BUFLEN, &count, NULL)) {
+		buffer[count] = 0;
+		ansi_print(buffer);
+	}
+}
+
+// Thread function that handles incoming bytestreams to be outputed on stderr
+void pipes_cerr_thread(void* dummy) 
+{
+	char buffer[PIPES_BUFLEN];
+	long count = 0;
+	ConnectNamedPipe(cerr_pipe, NULL);
+	while (ReadFile(cerr_pipe, buffer, PIPES_BUFLEN, &count, NULL)) {
+		buffer[count] = 0;
+        // no ansi escape sequences for stderr
+        utf8_fprint(stderr, buffer);
+	}
+}
+
+// Thread function that handles incoming bytestreams from stdin
+void pipes_cin_thread(void* dummy)
+{
+    char buffer[PIPES_BUFLEN];
+	long countr = 0;
+	long countw = 0;
+	ConnectNamedPipe(cin_pipe, NULL);
+	for(;;) {
+        if (!utf8_read(buffer, PIPES_BUFLEN, &countr))
+            break;
+		if (!WriteFile(cin_pipe, buffer, countr, &countw, NULL))
+			break;
+	}
+}
+
+// Start handler pipe handler threads
+void pipes_start_threads()
+{
+	_beginthread(pipes_cin_thread, 0, NULL);
+	_beginthread(pipes_cout_thread, 0, NULL);
+	_beginthread(pipes_cerr_thread, 0, NULL);
+}
+
+
+int main(int argc, char* argv[])
+{
+    // get full program name, exclude extension
+    wchar_t module_name[MAX_PATH+1];
+    GetModuleFileName(0, module_name, MAX_PATH);
+    module_name[MAX_PATH] = 0;
+    module_name[wcslen(module_name)-4] = 0;
+
+    // create command line for child process
+    wchar_t cmd_line[ARG_BUFLEN];
+    int count = wcslen(module_name) + 4;
+    if (count > ARG_BUFLEN) {
+        fprintf(stderr, "ERROR: Application name too long.\n");
+        return 1;
+    }
+    wcscat(cmd_line, module_name);
+    wcscat(cmd_line, L".exe");
+ 
+    // write all arguments to child command line
+    int i = 0;
+    for (i = 1; i < argc; ++i) {
+        int length = MultiByteToWideChar(CP_UTF8, 0, argv[i], -1, NULL, 0);
+        wchar_t wide_buffer[length];
+        // convert UTF-8 -> UTF-16
+        MultiByteToWideChar(CP_UTF8, 0, argv[i], -1, wide_buffer, length);
+        count += length + 1;
+        if (count >= ARG_BUFLEN) break;
+        wcscat(cmd_line, L" ");
+        wcscat(cmd_line, wide_buffer);
+    }
+
+	// spawn child process in suspended mode and create pipes
+	PROCESS_INFORMATION pinfo;
+	STARTUPINFO sinfo;
+	memset(&sinfo, 0, sizeof(STARTUPINFO));
+	sinfo.cb = sizeof(STARTUPINFO);
+	if (!CreateProcess(NULL, cmd_line, NULL, NULL, FALSE, 
+	                   CREATE_SUSPENDED, NULL, NULL, &sinfo, &pinfo)) {
+        fprintf(stderr, "ERROR: Could not create process.\n");
+		return 1;
+	}
+	if (!pipes_create(pinfo.dwProcessId)) {
+        fprintf(stderr, "ERROR: Could not create named pipes.\n");
+		return 1;
+	}
+
+	// start the pipe threads and resume child process
+    ansi_init();
+    pipes_start_threads();
+	ResumeThread(pinfo.hThread);
+	
+	// wait for child process to exit and close pipes
+	WaitForSingleObject(pinfo.hProcess, INFINITE);
+	pipes_close();
+	ansi_close();
+	ULONG exit_code;
+	GetExitCodeProcess(pinfo.hProcess, (ULONG*) &exit_code);
+	return exit_code;
+}
 
