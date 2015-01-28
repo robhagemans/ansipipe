@@ -13,7 +13,7 @@
 #include <stdio.h>
 #include "ansipipe-connect.h"
 
-bool ansipipe_init(bool create)
+bool ansipipe_init()
 {
       // construct named pipe names
       char name_out[256];
@@ -30,15 +30,5 @@ bool ansipipe_init(bool create)
       rc = freopen(name_out, &achar[0], stdout) != NULL;
       rc = rc && freopen(name_in, &rchar[0], stdin) != NULL;
       rc = rc && freopen(name_err, &achar[0], stderr) != NULL;
-
-      // create console if none was available and one has been requested
-      if ( !rc && create) {
-            rc = (bool) AllocConsole();
-            if (rc) {
-                rc = freopen("CONOUT$", "a", stdout) != NULL;
-                rc = rc && freopen("CONIN$", "r", stdin) != NULL;
-                rc = rc && freopen("CONERR$", "a", stderr) != NULL;
-            }
-      }
       return rc;
 }
