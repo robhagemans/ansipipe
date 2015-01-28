@@ -41,6 +41,7 @@ The following is a list of modifications of Win32::Console::ANSI
 (RH 2015-01-27) Add #define macros to allow compilation under MinGW GCC
 (RH 2015-01-27) Add ansi_ API functions 
 (RH 2015-01-28) Change signature of ParseAndPrint to work with one hDev only
+(RH 2015-01-28) Remove codepage-conversion sequences ('\x1b(')
 
 Below are the original copyright and licence notices of Win32::Console::ANSI.
 Please note that the present modified file is released under slightly more 
@@ -200,9 +201,6 @@ WORD bold       = 0;
 WORD underline  = 0;
 WORD rvideo     = 0;
 WORD concealed  = 0;
-WORD conversion_enabled = 1;  // enabled by default ANSI(Win) --> OEM(Dos)
-UINT Cp_In  = CP_ACP;         // default script codepage (ANSI)
-UINT Cp_Out = CP_OEMCP;       // default ouput codepage  (OEM)
 UINT SaveCP;
 
 // saved cursor position
@@ -688,33 +686,6 @@ void InterpretEscSeq( )
         return;
 
     }
-  }
-  else if (prefix == '(') {
-    switch (suffix) {
-      case 'U' :                                // ESC(U no mapping
-        if ( es_argc != 0 ) return;
-        FlushBuffer();
-        conversion_enabled = 0;
-        return;
-
-      case 'K' :                                // ESC(K mapping if it exist
-        if ( es_argc != 0 ) return;
-        FlushBuffer();
-        SetConsoleOutputCP(SaveCP);
-        Cp_Out = CP_OEMCP;
-        conversion_enabled = 1;
-        return;
-
-      case 'X' :                                // ESC(#X codepage **EXPERIMENTAL**
-        if ( es_argc != 1 ) return;
-        FlushBuffer();
-        SetConsoleOutputCP(es_argv[0]);
-        conversion_enabled = 0;
-        return;
-    }
-  }
-  else {
-
   }
 }
 
