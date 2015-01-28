@@ -223,10 +223,6 @@ void FlushBuffer( )
 {
   DWORD nWritten;
   if (nCharInBuffer <= 0) return;
-//  if ( conversion_enabled ) {
-//    MultiByteToWideChar(Cp_In, 0, ChBuffer, nCharInBuffer, WcBuffer, BUFFER_SIZE);
-//    WideCharToMultiByte(Cp_Out, 0, WcBuffer, nCharInBuffer, ChBuffer, BUFFER_SIZE, NULL, NULL);
-//  }
   WriteConsoleW(hConOut, ChBuffer, nCharInBuffer, &nWritten, NULL);
   nCharInBuffer = 0;
 }
@@ -796,9 +792,16 @@ void ansi_close()
     SetConsoleTextAttribute(hConOut, init_attribute);
 }
 
-void ansi_print(wchar_t *buffer)
+void ansi_print(char *buffer)
 {
-    ParseAndPrintString(buffer, wcslen(buffer));
+    // get required buffer length
+    int length = MultiByteToWideChar(CP_UTF8, 0, buffer, -1, NULL, 0);
+    wchar_t wide_buffer[length];
+    if (wide_buffer != NULL) {
+        // convert UTF-8 -> UTF-16
+        MultiByteToWideChar(CP_UTF8, 0, buffer, -1, (LPWSTR)wide_buffer, length);
+        ParseAndPrintString(wide_buffer, length);
+    }
 }
 
 
@@ -806,7 +809,8 @@ int main()
 {
     // Unicode works, but remember to set a Unicode-aware font on the console window.
     // raster fonts will give strange results. 
-    wchar_t *test = L"\x1b[31;1mРусский\x1b[32;0m\x1b[1A中文\x1b[1B\x1b[34;45mPreußisch\x1b[36;47m\x1b[1Aελληνικά\x1b[1B\x1b[0m";
+    // this assumes compiler interprets literals as UTF-8; mine does.
+    char *test = "\x1b[31;1mРусский\x1b[32;0m\x1b[1A中文\x1b[1B\x1b[34;45mPreußisch\x1b[36;47m\x1b[1Aελληνικά\x1b[1B\x1b[0m";
     ansi_init();
     ansi_print(test);
     ansi_close();
