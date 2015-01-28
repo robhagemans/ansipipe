@@ -117,6 +117,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
+#define UNICODE
 #define _WIN32_WINNT 0x0500
 #include <windows.h>
 #include <stdio.h>
@@ -210,8 +211,9 @@ COORD SavePos = {0, 0};
 #define BUFFER_SIZE 256
 
 int nCharInBuffer = 0;
-char  ChBuffer[BUFFER_SIZE];
-WCHAR WcBuffer[BUFFER_SIZE];
+//char  ChBuffer[BUFFER_SIZE];
+WCHAR ChBuffer[BUFFER_SIZE];
+//WCHAR WcBuffer[BUFFER_SIZE];
 
 //-----------------------------------------------------------------------------
 //   FlushBuffer()
@@ -222,11 +224,11 @@ void FlushBuffer( )
 {
   DWORD nWritten;
   if (nCharInBuffer <= 0) return;
-  if ( conversion_enabled ) {
-    MultiByteToWideChar(Cp_In, 0, ChBuffer, nCharInBuffer, WcBuffer, BUFFER_SIZE);
-    WideCharToMultiByte(Cp_Out, 0, WcBuffer, nCharInBuffer, ChBuffer, BUFFER_SIZE, NULL, NULL);
-  }
-  WriteConsole(hConOut, ChBuffer, nCharInBuffer, &nWritten, NULL);
+//  if ( conversion_enabled ) {
+//    MultiByteToWideChar(Cp_In, 0, ChBuffer, nCharInBuffer, WcBuffer, BUFFER_SIZE);
+//    WideCharToMultiByte(Cp_Out, 0, WcBuffer, nCharInBuffer, ChBuffer, BUFFER_SIZE, NULL, NULL);
+//  }
+  WriteConsoleW(hConOut, ChBuffer, nCharInBuffer, &nWritten, NULL);
   nCharInBuffer = 0;
 }
 
@@ -235,7 +237,8 @@ void FlushBuffer( )
 // Adds a character in the buffer and flushes the buffer if it is full
 //-----------------------------------------------------------------------------
 
-void PushBuffer( char c)
+//void PushBuffer( char c)
+void PushBuffer(WCHAR c)
 {
   ChBuffer[nCharInBuffer++] = concealed ? ' ' : c;
   if (nCharInBuffer >= BUFFER_SIZE) {
@@ -734,14 +737,16 @@ ParseAndPrintString(HANDLE hDev,
                     )
 {
   DWORD i;
-  char * s;
+//  char * s;
+  LPCTSTR s;
   
   //dTHX;
   if (hDev != hCurrentDev) {
     hCurrentDev = hDev;
     state = 1;            // reinit if device have changed
   }
-  for(i=nNumberOfBytesToWrite, s=(char *)lpBuffer; i>0; i--, s++) {
+  for(i=nNumberOfBytesToWrite, s=(LPCTSTR)lpBuffer; i>0; i--, s++) {
+//  for(i=nNumberOfBytesToWrite, s=(char *)lpBuffer; i>0; i--, s++) {
     if (state==1) {
       if (*s == ESC) state = 2;
       else PushBuffer(*s);
@@ -831,18 +836,20 @@ void ansi_close()
     SetConsoleTextAttribute(hConOut, init_attribute);
 }
 
-void ansi_print(char *buffer, long len)
+void ansi_print(wchar_t *buffer)
 {
     long dummy = 0;
-    ParseAndPrintString(console, buffer, len, &dummy);
+    ParseAndPrintString(console, buffer, wcslen(buffer), &dummy);
 }
 
 
 int main()
 {
-    char test[40] = "test \x1b[31;44mstr\x1b[0mß\0";
+    // Unicode works, but remember to set a Unicode-aware font on the console window.
+    // raster fonts will give strange results. 
+    wchar_t *test = L"\x1b[31;1mРусский\x1b[32;0m\x1b[1A中文\x1b[1B\x1b[34;45mPreußisch\x1b[36;47m\x1b[1Aελληνικά\x1b[1B\x1b[0m";
     ansi_init();
-    ansi_print(test, 40);
+    ansi_print(test);
     ansi_close();
     return 0;
 }
