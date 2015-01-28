@@ -28,16 +28,16 @@ bool ansipipe_init(bool create)
       char achar[4] = "a\0\0\0";
       char rchar[4] = "r\0\0\0";
       rc = freopen(name_out, &achar[0], stdout) != NULL;
-      rc &&= freopen(name_in, &rchar[0], stdin) != NULL;
-      rc &&= freopen(name_err, &achar[0], stderr) != NULL;
+      rc = rc && freopen(name_in, &rchar[0], stdin) != NULL;
+      rc = rc && freopen(name_err, &achar[0], stderr) != NULL;
 
       // create console if none was available and one has been requested
       if ( !rc && create) {
             rc = (bool) AllocConsole();
             if (rc) {
                 rc = freopen("CONOUT$", "a", stdout) != NULL;
-                rc &&= freopen("CONIN$", "r", stdin) != NULL;
-                rc &&= freopen("CONERR$", "a", stderr) != NULL;
+                rc = rc && freopen("CONIN$", "r", stdin) != NULL;
+                rc = rc && freopen("CONERR$", "a", stderr) != NULL;
             }
       }
       return rc;
