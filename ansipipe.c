@@ -142,8 +142,10 @@ typedef enum { false, true } bool;
 
 // ========== Global variables and constants
 
-HANDLE hConOut;                 // handle to CONOUT$
-HANDLE hDev;                    // output device
+// handles to standard i/o strams
+HANDLE handle_cout;
+HANDLE handle_cin;
+HANDLE handle_cerr;
 
 #define ESC     '\x1B'          // ESCape character
 #define LF      '\x0A'          // Line Feed
@@ -153,7 +155,7 @@ HANDLE hDev;                    // output device
 #define MAX_ARG 16              // max number of args in an escape sequence
 int state;                      // automata state
 char prefix;                    // escape sequence prefix ( '[' or '(' );
-char prefix2;			              // secondary prefix ( '?' );
+char prefix2;			         // secondary prefix ( '?' );
 char suffix;                    // escape sequence suffix
 int es_argc;                    // escape sequence args count
 int es_argv[MAX_ARG];           // escape sequence args
@@ -166,7 +168,7 @@ int es_argv[MAX_ARG];           // escape sequence args
 #define BACKGROUND_BLACK 0
 #define BACKGROUND_WHITE BACKGROUND_RED|BACKGROUND_GREEN|BACKGROUND_BLUE
 
-WORD foregroundcolor[16] = {
+int foregroundcolor[16] = {
       FOREGROUND_BLACK,                                       // black
       FOREGROUND_RED,                                         // red
       FOREGROUND_GREEN,                                       // green
@@ -185,7 +187,7 @@ WORD foregroundcolor[16] = {
       FOREGROUND_WHITE|FOREGROUND_INTENSITY                   // white
 };
 
-WORD backgroundcolor[16] = {
+int backgroundcolor[16] = {
       BACKGROUND_BLACK,
       BACKGROUND_RED,
       BACKGROUND_GREEN,
@@ -205,60 +207,59 @@ WORD backgroundcolor[16] = {
 };
 
 // Table to convert the color order of the console in the ANSI order.
-WORD conversion[16] = {0, 4, 2, 6, 1, 5, 3, 7, 8, 12, 10, 14, 9, 13, 11, 15};
+int conversion[16] = {0, 4, 2, 6, 1, 5, 3, 7, 8, 12, 10, 14, 9, 13, 11, 15};
 
 // screen attributes
-WORD foreground = FOREGROUND_WHITE;
-WORD background = BACKGROUND_BLACK;
-WORD foreground_default = FOREGROUND_WHITE;
-WORD background_default = BACKGROUND_BLACK;
-WORD bold       = 0;
-WORD underline  = 0;
-WORD rvideo     = 0;
-WORD concealed  = 0;
-UINT SaveCP;
+int foreground = FOREGROUND_WHITE;
+int background = BACKGROUND_BLACK;
+int foreground_default = FOREGROUND_WHITE;
+int background_default = BACKGROUND_BLACK;
+bool bold = false;
+bool underline = false;
+bool rvideo = false;
+bool concealed = false;
 
 // saved cursor position
-COORD SavePos = {0, 0};
+COORD save_pos = {0, 0};
 
 
 // ========== Print Buffer functions
 
-#define BUFFER_SIZE 256
+#define PBUF_SIZE 256
 
-int nCharInBuffer = 0;
-WCHAR ChBuffer[BUFFER_SIZE];
+int pbuf_nchar = 0;
+wchar_t pbuf[PBUF_SIZE];
 
 //-----------------------------------------------------------------------------
-//   FlushBuffer()
-// Converts the buffer from ANSI to OEM and write it in the console.
+//  pbuf_flush()
+//  write buffer to console
 //-----------------------------------------------------------------------------
 
-void FlushBuffer( )
+void pbuf_flush()
 {
-    DWORD nWritten;
-    if (nCharInBuffer <= 0) return;
-    WriteConsoleW(hConOut, ChBuffer, nCharInBuffer, &nWritten, NULL);
-    nCharInBuffer = 0;
+    if (pbuf_nchar <= 0) return;
+    long written;
+    WriteConsoleW(handle_cout, pbuf, pbuf_nchar, &written, NULL);
+    pbuf_nchar = 0;
 }
 
 //-----------------------------------------------------------------------------
-//   PushBuffer( char c)
-// Adds a character in the buffer and flushes the buffer if it is full
+//  pbuf_push( char c)
+//  add a character in the buffer and flush the buffer if it is full
 //-----------------------------------------------------------------------------
 
-void PushBuffer(WCHAR c)
+void pbuf_push(wchar_t c)
 {
-    ChBuffer[nCharInBuffer++] = concealed ? ' ' : c;
-    if (nCharInBuffer >= BUFFER_SIZE) {
-        FlushBuffer();
+    pbuf[pbuf_nchar++] = concealed ? ' ' : c;
+    if (pbuf_nchar >= PBUF_SIZE) {
+        pbuf_flush();
     }
 }
 
 // ========== Print functions
 
 //-----------------------------------------------------------------------------
-//   InterpretEscSeq( )
+//   ansi_interpret_seq( )
 // Interprets the last escape sequence scanned by ParseAndPrintString
 //   prefix             escape sequence prefix
 //   es_argc            escape sequence args count
@@ -271,66 +272,66 @@ void PushBuffer(WCHAR c)
 // suffix = 'm'
 //-----------------------------------------------------------------------------
 
-void InterpretEscSeq()
+void ansi_interpret_seq()
 {
     int i;
-    WORD attribut;
-    CONSOLE_SCREEN_BUFFER_INFO Info;
-    CONSOLE_CURSOR_INFO CursInfo;
-    DWORD len, NumberOfCharsWritten;
-    COORD Pos;
-    SMALL_RECT Rect;
-    CHAR_INFO CharInfo;
+    int attr;
+    CONSOLE_SCREEN_BUFFER_INFO info;
+    CONSOLE_CURSOR_INFO curs_info;
+    long len, written;
+    COORD pos;
+    SMALL_RECT rect;
+    CHAR_INFO char_info;
 
     if (prefix == '[') {
         if (prefix2 == '?' && (suffix == 'h' || suffix == 'l')) {
         if (es_argc == 1 && es_argv[0] == 25) {
-            GetConsoleCursorInfo(hConOut, &CursInfo);
-            CursInfo.bVisible = (suffix == 'h');
-            SetConsoleCursorInfo(hConOut, &CursInfo);
+            GetConsoleCursorInfo(handle_cout, &curs_info);
+            curs_info.bVisible = (suffix == 'h');
+            SetConsoleCursorInfo(handle_cout, &curs_info);
             return;
         }
     }
     // Ignore any other \e[? sequences.
     if (prefix2 != 0) return;
 
-    GetConsoleScreenBufferInfo(hConOut, &Info);
+    GetConsoleScreenBufferInfo(handle_cout, &info);
     switch (suffix) {
     case 'm':
         if (es_argc == 0) es_argv[es_argc++] = 0;
         for(i = 0; i < es_argc; i++) {
             switch (es_argv[i]) {
-            case 0 :
+            case 0:
                 foreground = foreground_default;
                 background = background_default;
-                bold = 0;
-                underline = 0;
-                rvideo = 0;
-                concealed = 0;
+                bold = false;
+                underline = false;
+                rvideo = false;
+                concealed = false;
                 break;
-            case 1 :
-                bold = 1;
+            case 1:
+                bold = true;
                 break;
-            case 21 :
-                bold = 0;
+            case 21:
+                bold = false;
                 break;
-            case 4 :
-                underline = 1;
+            case 4:
+                underline = true;
                 break;
-            case 24 :
-                underline = 0;
+            case 24:
+                underline = false;
                 break;
-            case 7 :
-                rvideo = 1;
+            case 7:
+                rvideo = true;
                 break;
-            case 27 :
-                rvideo = 0;
+            case 27:
+                rvideo = false;
                 break;
-            case 8 :
-                concealed = 1;
+            case 8:
+                concealed = true;
                 break;
-            case 28 :
-                concealed = 0;
+            case 28:
+                concealed = false;
                 break;
             }
             if ((30 <= es_argv[i]) && (es_argv[i] <= 37)) 
@@ -339,14 +340,14 @@ void InterpretEscSeq()
                 background = es_argv[i]-40;
         }
         if (rvideo) 
-            attribut = foregroundcolor[background] | backgroundcolor[foreground];
+            attr = foregroundcolor[background] | backgroundcolor[foreground];
         else 
-            attribut = foregroundcolor[foreground] | backgroundcolor[background];
+            attr = foregroundcolor[foreground] | backgroundcolor[background];
         if (bold) 
-            attribut |= FOREGROUND_INTENSITY;
+            attr |= FOREGROUND_INTENSITY;
         if (underline) 
-            attribut |= BACKGROUND_INTENSITY;
-        SetConsoleTextAttribute(hConOut, attribut);
+            attr |= BACKGROUND_INTENSITY;
+        SetConsoleTextAttribute(handle_cout, attr);
         return;
     case 'J':
         if (es_argc == 0) es_argv[es_argc++] = 0;   // ESC[J == ESC[0J
@@ -354,33 +355,33 @@ void InterpretEscSeq()
         switch (es_argv[0]) {
         case 0:              
             // ESC[0J erase from cursor to end of display
-            len = (Info.dwSize.Y-Info.dwCursorPosition.Y-1)
-                  *Info.dwSize.X+Info.dwSize.X-Info.dwCursorPosition.X-1;
-            FillConsoleOutputCharacter(hConOut, ' ', len,
-                                Info.dwCursorPosition, &NumberOfCharsWritten);
-            FillConsoleOutputAttribute(hConOut, Info.wAttributes, len,
-                                Info.dwCursorPosition, &NumberOfCharsWritten);
+            len = (info.dwSize.Y-info.dwCursorPosition.Y-1)
+                  *info.dwSize.X+info.dwSize.X-info.dwCursorPosition.X-1;
+            FillConsoleOutputCharacter(handle_cout, ' ', len,
+                                info.dwCursorPosition, &written);
+            FillConsoleOutputAttribute(handle_cout, info.wAttributes, len,
+                                info.dwCursorPosition, &written);
             return;
         case 1:              
             // ESC[1J erase from start to cursor.
-            Pos.X = 0;
-            Pos.Y = 0;
-            len = Info.dwCursorPosition.Y*Info.dwSize.X+Info.dwCursorPosition.X+1;
-            FillConsoleOutputCharacter(hConOut, ' ', len, Pos, 
-                                                    &NumberOfCharsWritten);
-            FillConsoleOutputAttribute(hConOut, Info.wAttributes, len, Pos, 
-                                                    &NumberOfCharsWritten);
+            pos.X = 0;
+            pos.Y = 0;
+            len = info.dwCursorPosition.Y*info.dwSize.X+info.dwCursorPosition.X+1;
+            FillConsoleOutputCharacter(handle_cout, ' ', len, pos, 
+                                                    &written);
+            FillConsoleOutputAttribute(handle_cout, info.wAttributes, len, pos, 
+                                                    &written);
             return;
         case 2:              
             // ESC[2J Clear screen and home cursor
-            Pos.X = 0;
-            Pos.Y = 0;
-            len = Info.dwSize.X*Info.dwSize.Y;
-            FillConsoleOutputCharacter(hConOut, ' ', len, Pos,
-                                                    &NumberOfCharsWritten);
-            FillConsoleOutputAttribute(hConOut, Info.wAttributes, len, Pos,
-                                                    &NumberOfCharsWritten);
-            SetConsoleCursorPosition(hConOut, Pos);
+            pos.X = 0;
+            pos.Y = 0;
+            len = info.dwSize.X*info.dwSize.Y;
+            FillConsoleOutputCharacter(handle_cout, ' ', len, pos,
+                                                    &written);
+            FillConsoleOutputAttribute(handle_cout, info.wAttributes, len, pos,
+                                                    &written);
+            SetConsoleCursorPosition(handle_cout, pos);
             return;
         default :
             return;
@@ -391,30 +392,30 @@ void InterpretEscSeq()
         switch (es_argv[0]) {
         case 0:              
             // ESC[0K Clear to end of line
-            len = Info.srWindow.Right-Info.dwCursorPosition.X+1;
-            FillConsoleOutputCharacter(hConOut, ' ', len, 
-                                Info.dwCursorPosition, &NumberOfCharsWritten);
-            FillConsoleOutputAttribute(hConOut, Info.wAttributes, len,
-                                Info.dwCursorPosition, &NumberOfCharsWritten);
+            len = info.srWindow.Right-info.dwCursorPosition.X+1;
+            FillConsoleOutputCharacter(handle_cout, ' ', len, 
+                                info.dwCursorPosition, &written);
+            FillConsoleOutputAttribute(handle_cout, info.wAttributes, len,
+                                info.dwCursorPosition, &written);
             return;
         case 1:              
             // ESC[1K Clear from start of line to cursor
-            Pos.X = 0;
-            Pos.Y = Info.dwCursorPosition.Y;
-            FillConsoleOutputCharacter(hConOut, ' ', Info.dwCursorPosition.X+1,
-                                Pos, &NumberOfCharsWritten);
-            FillConsoleOutputAttribute(hConOut, Info.wAttributes, 
-                                Info.dwCursorPosition.X+1, Pos,
-                                &NumberOfCharsWritten);
+            pos.X = 0;
+            pos.Y = info.dwCursorPosition.Y;
+            FillConsoleOutputCharacter(handle_cout, ' ', info.dwCursorPosition.X+1,
+                                pos, &written);
+            FillConsoleOutputAttribute(handle_cout, info.wAttributes, 
+                                info.dwCursorPosition.X+1, pos,
+                                &written);
             return;
         case 2:              
             // ESC[2K Clear whole line.
-            Pos.X = 0;
-            Pos.Y = Info.dwCursorPosition.Y;
-            FillConsoleOutputCharacter(hConOut, ' ', Info.dwSize.X, 
-                                                Pos, &NumberOfCharsWritten);
-            FillConsoleOutputAttribute(hConOut, Info.wAttributes, Info.dwSize.X,
-                                                Pos, &NumberOfCharsWritten);
+            pos.X = 0;
+            pos.Y = info.dwCursorPosition.Y;
+            FillConsoleOutputCharacter(handle_cout, ' ', info.dwSize.X, 
+                                                pos, &written);
+            FillConsoleOutputAttribute(handle_cout, info.wAttributes, info.dwSize.X,
+                                                pos, &written);
             return;
         default :
             return;
@@ -423,145 +424,145 @@ void InterpretEscSeq()
         // ESC[#L Insert # blank lines.
         if (es_argc == 0) es_argv[es_argc++] = 1;   // ESC[L == ESC[1L
         if (es_argc != 1) return;
-        Rect.Left   = 0;
-        Rect.Top    = Info.dwCursorPosition.Y;
-        Rect.Right  = Info.dwSize.X-1;
-        Rect.Bottom = Info.dwSize.Y-1;
-        Pos.X = 0;
-        Pos.Y = Info.dwCursorPosition.Y+es_argv[0];
-        CharInfo.Char.AsciiChar = ' ';
-        CharInfo.Attributes = Info.wAttributes;
-        ScrollConsoleScreenBuffer(hConOut, &Rect, NULL, Pos, &CharInfo);
-        Pos.X = 0;
-        Pos.Y = Info.dwCursorPosition.Y;
-        FillConsoleOutputCharacter(hConOut, ' ', 
-                        Info.dwSize.X*es_argv[0], Pos, &NumberOfCharsWritten);
-        FillConsoleOutputAttribute(hConOut, Info.wAttributes, 
-                        Info.dwSize.X*es_argv[0], Pos, &NumberOfCharsWritten);
+        rect.Left   = 0;
+        rect.Top    = info.dwCursorPosition.Y;
+        rect.Right  = info.dwSize.X-1;
+        rect.Bottom = info.dwSize.Y-1;
+        pos.X = 0;
+        pos.Y = info.dwCursorPosition.Y+es_argv[0];
+        char_info.Char.AsciiChar = ' ';
+        char_info.Attributes = info.wAttributes;
+        ScrollConsoleScreenBuffer(handle_cout, &rect, NULL, pos, &char_info);
+        pos.X = 0;
+        pos.Y = info.dwCursorPosition.Y;
+        FillConsoleOutputCharacter(handle_cout, ' ', 
+                        info.dwSize.X*es_argv[0], pos, &written);
+        FillConsoleOutputAttribute(handle_cout, info.wAttributes, 
+                        info.dwSize.X*es_argv[0], pos, &written);
         return;
     case 'M':
         // ESC[#M Delete # line.
         if (es_argc == 0) es_argv[es_argc++] = 1;   // ESC[M == ESC[1M
         if (es_argc != 1) return;
-        if (es_argv[0] > Info.dwSize.Y - Info.dwCursorPosition.Y)
-            es_argv[0] = Info.dwSize.Y - Info.dwCursorPosition.Y;
-        Rect.Left   = 0;
-        Rect.Top    = Info.dwCursorPosition.Y+es_argv[0];
-        Rect.Right  = Info.dwSize.X-1;
-        Rect.Bottom = Info.dwSize.Y-1;
-        Pos.X = 0;
-        Pos.Y = Info.dwCursorPosition.Y;
-        CharInfo.Char.AsciiChar = ' ';
-        CharInfo.Attributes = Info.wAttributes;
-        ScrollConsoleScreenBuffer(hConOut, &Rect, NULL, Pos, &CharInfo);
-        Pos.Y = Info.dwSize.Y - es_argv[0];
-        FillConsoleOutputCharacter(hConOut, ' ', 
-                        Info.dwSize.X * es_argv[0], Pos, &NumberOfCharsWritten);
-        FillConsoleOutputAttribute(hConOut, Info.wAttributes,
-                        Info.dwSize.X * es_argv[0], Pos, &NumberOfCharsWritten);
+        if (es_argv[0] > info.dwSize.Y - info.dwCursorPosition.Y)
+            es_argv[0] = info.dwSize.Y - info.dwCursorPosition.Y;
+        rect.Left   = 0;
+        rect.Top    = info.dwCursorPosition.Y+es_argv[0];
+        rect.Right  = info.dwSize.X-1;
+        rect.Bottom = info.dwSize.Y-1;
+        pos.X = 0;
+        pos.Y = info.dwCursorPosition.Y;
+        char_info.Char.AsciiChar = ' ';
+        char_info.Attributes = info.wAttributes;
+        ScrollConsoleScreenBuffer(handle_cout, &rect, NULL, pos, &char_info);
+        pos.Y = info.dwSize.Y - es_argv[0];
+        FillConsoleOutputCharacter(handle_cout, ' ', 
+                        info.dwSize.X * es_argv[0], pos, &written);
+        FillConsoleOutputAttribute(handle_cout, info.wAttributes,
+                        info.dwSize.X * es_argv[0], pos, &written);
         return;
     case 'P':
         // ESC[#P Delete # characters.
         if (es_argc == 0) es_argv[es_argc++] = 1;   // ESC[P == ESC[1P
         if (es_argc != 1) return;
-        if (Info.dwCursorPosition.X + es_argv[0] > Info.dwSize.X - 1)
-            es_argv[0] = Info.dwSize.X - Info.dwCursorPosition.X;
-        Rect.Left   = Info.dwCursorPosition.X + es_argv[0];
-        Rect.Top    = Info.dwCursorPosition.Y;
-        Rect.Right  = Info.dwSize.X-1;
-        Rect.Bottom = Info.dwCursorPosition.Y;
-        CharInfo.Char.AsciiChar = ' ';
-        CharInfo.Attributes = Info.wAttributes;
-        ScrollConsoleScreenBuffer(hConOut, &Rect, NULL, Info.dwCursorPosition,
-                                                        &CharInfo);
-        Pos.X = Info.dwSize.X - es_argv[0];
-        Pos.Y = Info.dwCursorPosition.Y;
-        FillConsoleOutputCharacter(hConOut, ' ', es_argv[0], Pos,
-                                                        &NumberOfCharsWritten);
+        if (info.dwCursorPosition.X + es_argv[0] > info.dwSize.X - 1)
+            es_argv[0] = info.dwSize.X - info.dwCursorPosition.X;
+        rect.Left   = info.dwCursorPosition.X + es_argv[0];
+        rect.Top    = info.dwCursorPosition.Y;
+        rect.Right  = info.dwSize.X-1;
+        rect.Bottom = info.dwCursorPosition.Y;
+        char_info.Char.AsciiChar = ' ';
+        char_info.Attributes = info.wAttributes;
+        ScrollConsoleScreenBuffer(handle_cout, &rect, NULL, info.dwCursorPosition,
+                                                        &char_info);
+        pos.X = info.dwSize.X - es_argv[0];
+        pos.Y = info.dwCursorPosition.Y;
+        FillConsoleOutputCharacter(handle_cout, ' ', es_argv[0], pos,
+                                                        &written);
         return;
     case '@':
         // ESC[#@ Insert # blank characters.
         if (es_argc == 0) es_argv[es_argc++] = 1;   // ESC[@ == ESC[1@
         if (es_argc != 1) return;
-        if (Info.dwCursorPosition.X + es_argv[0] > Info.dwSize.X - 1)
-            es_argv[0] = Info.dwSize.X - Info.dwCursorPosition.X;
-        Rect.Left   = Info.dwCursorPosition.X;
-        Rect.Top    = Info.dwCursorPosition.Y;
-        Rect.Right  = Info.dwSize.X-1-es_argv[0];
-        Rect.Bottom = Info.dwCursorPosition.Y;
-        Pos.X = Info.dwCursorPosition.X+es_argv[0];
-        Pos.Y = Info.dwCursorPosition.Y;
-        CharInfo.Char.AsciiChar = ' ';
-        CharInfo.Attributes = Info.wAttributes;
-        ScrollConsoleScreenBuffer(hConOut, &Rect, NULL, Pos, &CharInfo);
-        FillConsoleOutputCharacter(hConOut, ' ', es_argv[0],
-                                Info.dwCursorPosition, &NumberOfCharsWritten);
-        FillConsoleOutputAttribute(hConOut, Info.wAttributes, es_argv[0],
-                                Info.dwCursorPosition, &NumberOfCharsWritten);
+        if (info.dwCursorPosition.X + es_argv[0] > info.dwSize.X - 1)
+            es_argv[0] = info.dwSize.X - info.dwCursorPosition.X;
+        rect.Left   = info.dwCursorPosition.X;
+        rect.Top    = info.dwCursorPosition.Y;
+        rect.Right  = info.dwSize.X-1-es_argv[0];
+        rect.Bottom = info.dwCursorPosition.Y;
+        pos.X = info.dwCursorPosition.X+es_argv[0];
+        pos.Y = info.dwCursorPosition.Y;
+        char_info.Char.AsciiChar = ' ';
+        char_info.Attributes = info.wAttributes;
+        ScrollConsoleScreenBuffer(handle_cout, &rect, NULL, pos, &char_info);
+        FillConsoleOutputCharacter(handle_cout, ' ', es_argv[0],
+                                info.dwCursorPosition, &written);
+        FillConsoleOutputAttribute(handle_cout, info.wAttributes, es_argv[0],
+                                info.dwCursorPosition, &written);
         return;
     case 'A':
         // ESC[#A Moves cursor up # lines
         if (es_argc == 0) es_argv[es_argc++] = 1;   // ESC[A == ESC[1A
         if (es_argc != 1) return;
-        Pos.X = Info.dwCursorPosition.X;
-        Pos.Y = Info.dwCursorPosition.Y-es_argv[0];
-        if (Pos.Y < 0) Pos.Y = 0;
-        SetConsoleCursorPosition(hConOut, Pos);
+        pos.X = info.dwCursorPosition.X;
+        pos.Y = info.dwCursorPosition.Y-es_argv[0];
+        if (pos.Y < 0) pos.Y = 0;
+        SetConsoleCursorPosition(handle_cout, pos);
         return;
     case 'B':
         // ESC[#B Moves cursor down # lines
         if (es_argc == 0) es_argv[es_argc++] = 1;   // ESC[B == ESC[1B
         if (es_argc != 1) return;
-        Pos.X = Info.dwCursorPosition.X;
-        Pos.Y = Info.dwCursorPosition.Y+es_argv[0];
-        if (Pos.Y >= Info.dwSize.Y) Pos.Y = Info.dwSize.Y-1;
-        SetConsoleCursorPosition(hConOut, Pos);
+        pos.X = info.dwCursorPosition.X;
+        pos.Y = info.dwCursorPosition.Y+es_argv[0];
+        if (pos.Y >= info.dwSize.Y) pos.Y = info.dwSize.Y-1;
+        SetConsoleCursorPosition(handle_cout, pos);
         return;
     case 'C':
         // ESC[#C Moves cursor forward # spaces
         if (es_argc == 0) es_argv[es_argc++] = 1;   // ESC[C == ESC[1C
         if (es_argc != 1) return;
-        Pos.X = Info.dwCursorPosition.X+es_argv[0];
-        if (Pos.X >= Info.dwSize.X) Pos.X = Info.dwSize.X-1;
-        Pos.Y = Info.dwCursorPosition.Y;
-        SetConsoleCursorPosition(hConOut, Pos);
+        pos.X = info.dwCursorPosition.X+es_argv[0];
+        if (pos.X >= info.dwSize.X) pos.X = info.dwSize.X-1;
+        pos.Y = info.dwCursorPosition.Y;
+        SetConsoleCursorPosition(handle_cout, pos);
         return;
     case 'D':
         // ESC[#D Moves cursor back # spaces
         if (es_argc == 0) es_argv[es_argc++] = 1;   // ESC[D == ESC[1D
         if (es_argc != 1) return;
-        Pos.X = Info.dwCursorPosition.X-es_argv[0];
-        if (Pos.X < 0) Pos.X = 0;
-        Pos.Y = Info.dwCursorPosition.Y;
-        SetConsoleCursorPosition(hConOut, Pos);
+        pos.X = info.dwCursorPosition.X-es_argv[0];
+        if (pos.X < 0) pos.X = 0;
+        pos.Y = info.dwCursorPosition.Y;
+        SetConsoleCursorPosition(handle_cout, pos);
         return;
     case 'E':
         // ESC[#E Moves cursor down # lines, column 1.
         if (es_argc == 0) es_argv[es_argc++] = 1;   // ESC[E == ESC[1E
         if (es_argc != 1) return;
-        Pos.X = 0;
-        Pos.Y = Info.dwCursorPosition.Y+es_argv[0];
-        if (Pos.Y >= Info.dwSize.Y) Pos.Y = Info.dwSize.Y-1;
-        SetConsoleCursorPosition(hConOut, Pos);
+        pos.X = 0;
+        pos.Y = info.dwCursorPosition.Y+es_argv[0];
+        if (pos.Y >= info.dwSize.Y) pos.Y = info.dwSize.Y-1;
+        SetConsoleCursorPosition(handle_cout, pos);
         return;
     case 'F':
         // ESC[#F Moves cursor up # lines, column 1.
         if (es_argc == 0) es_argv[es_argc++] = 1;   // ESC[F == ESC[1F
         if (es_argc != 1) return;
-        Pos.X = 0;
-        Pos.Y = Info.dwCursorPosition.Y-es_argv[0];
-        if (Pos.Y < 0) Pos.Y = 0;
-        SetConsoleCursorPosition(hConOut, Pos);
+        pos.X = 0;
+        pos.Y = info.dwCursorPosition.Y-es_argv[0];
+        if (pos.Y < 0) pos.Y = 0;
+        SetConsoleCursorPosition(handle_cout, pos);
         return;
     case 'G':
         // ESC[#G Moves cursor column # in current row.
         if (es_argc == 0) es_argv[es_argc++] = 1;   // ESC[G == ESC[1G
         if (es_argc != 1) return;
-        Pos.X = es_argv[0] - 1;
-        if (Pos.X >= Info.dwSize.X) Pos.X = Info.dwSize.X-1;
-        if (Pos.X < 0) Pos.X = 0;
-        Pos.Y = Info.dwCursorPosition.Y;
-        SetConsoleCursorPosition(hConOut, Pos);
+        pos.X = es_argv[0] - 1;
+        if (pos.X >= info.dwSize.X) pos.X = info.dwSize.X-1;
+        if (pos.X < 0) pos.X = 0;
+        pos.Y = info.dwCursorPosition.Y;
+        SetConsoleCursorPosition(handle_cout, pos);
         return;
     case 'f':
     case 'H':
@@ -574,23 +575,23 @@ void InterpretEscSeq()
             es_argv[es_argc++] = 1;   // ESC[nG == ESC[n;1G
         }
         if (es_argc > 2) return;
-        Pos.X = es_argv[1] - 1;
-        if (Pos.X < 0) Pos.X = 0;
-        if (Pos.X >= Info.dwSize.X) Pos.X = Info.dwSize.X-1;
-        Pos.Y = es_argv[0] - 1;
-        if (Pos.Y < 0) Pos.Y = 0;
-        if (Pos.Y >= Info.dwSize.Y) Pos.Y = Info.dwSize.Y-1;
-        SetConsoleCursorPosition(hConOut, Pos);
+        pos.X = es_argv[1] - 1;
+        if (pos.X < 0) pos.X = 0;
+        if (pos.X >= info.dwSize.X) pos.X = info.dwSize.X-1;
+        pos.Y = es_argv[0] - 1;
+        if (pos.Y < 0) pos.Y = 0;
+        if (pos.Y >= info.dwSize.Y) pos.Y = info.dwSize.Y-1;
+        SetConsoleCursorPosition(handle_cout, pos);
         return;
     case 's':
         // ESC[s Saves cursor position for recall later
         if (es_argc != 0) return;
-        SavePos.X = Info.dwCursorPosition.X;
-        SavePos.Y = Info.dwCursorPosition.Y;
+        save_pos.X = info.dwCursorPosition.X;
+        save_pos.Y = info.dwCursorPosition.Y;
         return;
     case 'u' :                               // ESC[u Return to saved cursor position
         if (es_argc != 0) return;
-        SetConsoleCursorPosition(hConOut, SavePos);
+        SetConsoleCursorPosition(handle_cout, save_pos);
         return;
     default :
         return;
@@ -600,28 +601,33 @@ void InterpretEscSeq()
 
 
 //-----------------------------------------------------------------------------
-//   ParseAndPrintString(hDev, lpBuffer, nNumberOfBytesToWrite)
-// Parses the string lpBuffer, interprets the escapes sequences and prints the
-// characters in the device hDev (console).
+//  ansi_print(char* buffer)
+// Parses the string buffer, interprets the escapes sequences and prints the
+// characters on the console.
 // The lexer is a four states automata.
 // If the number of arguments es_argc > MAX_ARG, only the MAX_ARG-1 firsts and
 // the last arguments are processed (no es_argv[] overflow).
 //-----------------------------------------------------------------------------
 
-DWORD ParseAndPrintString(LPCVOID lpBuffer, DWORD nNumberOfBytesToWrite)
+void ansi_print(char *buffer)
 {
-    DWORD i;
-    LPCTSTR s;
-  
-    for(i = nNumberOfBytesToWrite, s = (LPCTSTR)lpBuffer; i > 0; i--, s++) {
+    // get required buffer length
+    int length = MultiByteToWideChar(CP_UTF8, 0, buffer, -1, NULL, 0);
+    wchar_t wide_buffer[length];
+    // convert UTF-8 -> UTF-16
+    MultiByteToWideChar(CP_UTF8, 0, buffer, -1, wide_buffer, length);
+    // start parsing
+    int i;
+    wchar_t *s;
+    for(i = length, s = wide_buffer; i > 0; i--, s++) {
         if (state == 1) {
             if (*s == ESC) state = 2;
-            else PushBuffer(*s);
+            else pbuf_push(*s);
         }
         else if (state == 2) {
             if (*s == ESC);       // \e\e...\e == \e
             else if ((*s == '[') || (*s == '(')) {
-                FlushBuffer();
+                pbuf_flush();
                 prefix = *s;
                 prefix2 = 0;
                 state = 3;
@@ -646,7 +652,7 @@ DWORD ParseAndPrintString(LPCVOID lpBuffer, DWORD nNumberOfBytesToWrite)
             else {
                 es_argc = 0;
                 suffix = *s;
-                InterpretEscSeq();
+                ansi_interpret_seq();
                 state = 1;
             }
         }
@@ -661,7 +667,7 @@ DWORD ParseAndPrintString(LPCVOID lpBuffer, DWORD nNumberOfBytesToWrite)
             else {
                 if (es_argc < MAX_ARG-1) es_argc++;
                 suffix = *s;
-                InterpretEscSeq();
+                ansi_interpret_seq();
                 state = 1;
             }
         }
@@ -670,8 +676,7 @@ DWORD ParseAndPrintString(LPCVOID lpBuffer, DWORD nNumberOfBytesToWrite)
             exit(1);
         }
     }
-    FlushBuffer();
-    return (nNumberOfBytesToWrite - i);
+    pbuf_flush();
 }
 
 //-----------------------------------------------------------------------------
@@ -685,12 +690,10 @@ WORD init_attribute;
 
 void ansi_init()
 {
-    hConOut = GetStdHandle(STD_OUTPUT_HANDLE);
-    hDev = GetConsoleWindow();
     // save initial console attributes
-    CONSOLE_SCREEN_BUFFER_INFO Info;
-    GetConsoleScreenBufferInfo(hConOut, &Info);
-    init_attribute = Info.wAttributes; 
+    CONSOLE_SCREEN_BUFFER_INFO info;
+    GetConsoleScreenBufferInfo(handle_cout, &info);
+    init_attribute = info.wAttributes; 
     // initialise parser state
     state = 1;
 }
@@ -698,17 +701,7 @@ void ansi_init()
 void ansi_close()
 {
     // restore console attributes
-    SetConsoleTextAttribute(hConOut, init_attribute);
-}
-
-void ansi_print(char *buffer)
-{
-    // get required buffer length
-    int length = MultiByteToWideChar(CP_UTF8, 0, buffer, -1, NULL, 0);
-    wchar_t wide_buffer[length];
-    // convert UTF-8 -> UTF-16
-    MultiByteToWideChar(CP_UTF8, 0, buffer, -1, (LPWSTR)wide_buffer, length);
-    ParseAndPrintString(wide_buffer, length);
+    SetConsoleTextAttribute(handle_cout, init_attribute);
 }
 
 void utf8_fprint(FILE *stream, char *buffer)
@@ -728,7 +721,7 @@ bool utf8_read(char *buffer, long buflen, long *count)
     // (RFC 3629) so this should fit in the char buffer when expanded
     wchar_t wide_buffer[buflen / 4];
     long wcount;
-	if (!ReadConsole(GetStdHandle(STD_INPUT_HANDLE), wide_buffer, buflen / 4, &wcount, NULL))
+	if (!ReadConsole(handle_cin, wide_buffer, buflen / 4, &wcount, NULL))
 		return false;
     int length = WideCharToMultiByte(CP_UTF8, 0, wide_buffer, -1, NULL, 0, NULL, NULL);
     if (length >= buflen) {
@@ -845,6 +838,10 @@ void pipes_start_threads()
 
 int main(int argc, char* argv[])
 {
+    handle_cout = GetStdHandle(STD_OUTPUT_HANDLE);
+    handle_cin = GetStdHandle(STD_INPUT_HANDLE);
+    handle_cerr = GetStdHandle(STD_ERROR_HANDLE);
+
     // get full program name, exclude extension
     wchar_t module_name[MAX_PATH+1];
     GetModuleFileName(0, module_name, MAX_PATH);
