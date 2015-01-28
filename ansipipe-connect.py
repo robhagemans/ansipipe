@@ -1,10 +1,11 @@
 """ 
-ANSI|pipe Python module
+ANSI|pipe Python connection module
 Redirect standard I/O through ANSI|pipe executable
 to enable UTF-8, ANSI escape sequences and dual mode CLI/GUI executables
 when packaging Python applications to a Windows executable.
 
-(c) 2015 Rob Hagemans
+based on DualModeI.cpp from dualsybsystem.
+Python version (c) 2015 Rob Hagemans
 This module is released under the terms of the MIT license.
 """
 
