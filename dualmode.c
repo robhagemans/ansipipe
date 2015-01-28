@@ -15,119 +15,74 @@ HANDLE coutPipe, cinPipe, cerrPipe;
 
 // Create named pipes for stdin, stdout and stderr
 // Parameter: process id
-BOOL 
-CreateNamedPipes(DWORD pid)
+BOOL CreateNamedPipes(DWORD pid) 
 {
 	TCHAR name[256];
-
 	sprintf(name, "\\\\.\\pipe\\%dcout", pid);
-	if (INVALID_HANDLE_VALUE == (coutPipe = CreateNamedPipe(name, 
-															PIPE_ACCESS_INBOUND, 
-															PIPE_TYPE_BYTE | PIPE_READMODE_BYTE,
-															1,
-															1024,
-															1024,
-															CONNECTIMEOUT,
-															NULL)))
+	if (INVALID_HANDLE_VALUE == (coutPipe = CreateNamedPipe(
+	            name, PIPE_ACCESS_INBOUND, PIPE_TYPE_BYTE | PIPE_READMODE_BYTE,
+		        1, 1024, 1024, CONNECTIMEOUT, NULL)))
 		return 0;
 	sprintf(name, "\\\\.\\pipe\\%dcin", pid);
-	if (INVALID_HANDLE_VALUE == (cinPipe = CreateNamedPipe(name, 
-															PIPE_ACCESS_OUTBOUND, 
-															PIPE_TYPE_BYTE | PIPE_READMODE_BYTE,
-															1,
-															1024,
-															1024,
-															CONNECTIMEOUT,
-															NULL)))
+	if (INVALID_HANDLE_VALUE == (cinPipe = CreateNamedPipe(
+	            name, PIPE_ACCESS_OUTBOUND, PIPE_TYPE_BYTE | PIPE_READMODE_BYTE,
+				1, 1024, 1024, CONNECTIMEOUT, NULL)))
 		return 0;
 	sprintf(name, "\\\\.\\pipe\\%dcerr", pid);
-	if (INVALID_HANDLE_VALUE == (cerrPipe = CreateNamedPipe(name, 
-															PIPE_ACCESS_INBOUND, 
-															PIPE_TYPE_BYTE | PIPE_READMODE_BYTE,
-															1,
-															1024,
-															1024,
-															CONNECTIMEOUT,
-															NULL)))
+	if (INVALID_HANDLE_VALUE == (cerrPipe = CreateNamedPipe(
+	            name, PIPE_ACCESS_INBOUND, PIPE_TYPE_BYTE | PIPE_READMODE_BYTE,
+				1, 1024, 1024, CONNECTIMEOUT, NULL)))
 		return 0;
-
 	return 1;
 }
 
 // Close all named pipes
-void
-CloseNamedPipes()
+void CloseNamedPipes() 
 {
-  Sleep(100); //Give pipes a chance to flush
+    // Give pipes a chance to flush
+    Sleep(100);
 	CloseHandle(coutPipe);
 	CloseHandle(cerrPipe);
 	CloseHandle(cinPipe);
 }
 
-
-// Thread function that handles incoming bytestreams to be outputed
-// on stdout
-void 
-OutPipeTh(void* dummy)
+// Thread function that handles incoming bytestreams to be output on stdout
+void OutPipeTh(void* dummy) 
 {
 	TCHAR buffer[1024];
 	DWORD count = 0;
-
 	ConnectNamedPipe(coutPipe, NULL);
-
-	while(ReadFile(coutPipe, buffer, 1024, &count, NULL))
-	{
+	while (ReadFile(coutPipe, buffer, 1024, &count, NULL)) 	{
 		buffer[count] = 0;
         fprintf(stdout, "%s", buffer);
         fflush(stdout);
-//    std::cout << buffer << std::flush;
 	}
 }
 
-// Thread function that handles incoming bytestreams to be outputed
-// on stderr
-void 
-ErrPipeTh(void* dummy)
+// Thread function that handles incoming bytestreams to be outputed on stderr
+void ErrPipeTh(void* dummy) 
 {
 	TCHAR buffer[1024];
 	DWORD count = 0;
-
 	ConnectNamedPipe(cerrPipe, NULL);
-
-	while(ReadFile(cerrPipe, buffer, 1024, &count, NULL))
-	{
+	while (ReadFile(cerrPipe, buffer, 1024, &count, NULL))	{
 		buffer[count] = 0;
 		fprintf(stderr, "%s", buffer);
 		fflush(stderr);
-//    std::cerr << buffer << std::flush;
 	}
 }
 
 // Thread function that handles incoming bytestreams from stdin
-void 
-InPipeTh(void* dummy)
+void InPipeTh(void* dummy)
 {
-	TCHAR buffer[1024];
+    TCHAR buffer[1024];
 	DWORD countr = 0;
 	DWORD countw = 0;
-
 	ConnectNamedPipe( cinPipe, NULL);
-
-	for(;;)
-	{
-		if (!ReadFile(GetStdHandle(STD_INPUT_HANDLE),
-					  buffer,
-					  1024,
-					  &countr,
-					  NULL))
-				break;
-
-
-		if (!WriteFile(cinPipe, 
-					   buffer, 
-					   countr, 
-					   &countw, 
-					   NULL))
+	for(;;) {
+		if (!ReadFile(GetStdHandle(STD_INPUT_HANDLE), buffer, 1024, &countr, NULL))
+			break;
+		if (!WriteFile(cinPipe, buffer, countr, &countw, NULL))
 			break;
 	}
 }
@@ -141,48 +96,43 @@ void RunPipeThreads()
 }
 
 
-int 
-main(int argc, char* argv[])
+int main(int argc, char* argv[])
 {
 	// create command line string based on program name
-  TCHAR cLine[2048];
-  TCHAR module_name[MAX_PATH+1];
-  GetModuleFileName(0, module_name, MAX_PATH);
-  module_name[MAX_PATH] = 0;
-  module_name[strlen(module_name)-4] = 0;
-  
-  TCHAR cArgs[2048];
-  TCHAR cArgsClean[2048];
-  strncpy(cArgs, GetCommandLine(), 2047);
-  cArgs[2048] = 0;
+    TCHAR cLine[2048];
+    TCHAR module_name[MAX_PATH+1];
+    GetModuleFileName(0, module_name, MAX_PATH);
+    module_name[MAX_PATH] = 0;
+    module_name[strlen(module_name)-4] = 0;
 
-  //Find where to cut out the program name (which may be quoted)
-  int offset=0;
-  TCHAR* ptr = cArgs;
-  bool inQuote = false;
-  if(cArgs[0] == '\"')
-  {
-    inQuote = true;
-    offset++;
-    ptr++;
-  }
-  while(*ptr)
-  {
-    offset++;
-    if(inQuote && *ptr == '\"')
-    {
-      offset++;
-      break;
+    TCHAR cArgs[2048];
+    TCHAR cArgsClean[2048];
+    strncpy(cArgs, GetCommandLine(), 2047);
+    cArgs[2048] = 0;
+
+    //Find where to cut out the program name (which may be quoted)
+    int offset=0;
+    TCHAR* ptr = cArgs;
+    bool inQuote = false;
+    if(cArgs[0] == '\"') {
+        inQuote = true;
+        offset++;
+        ptr++;
     }
-    if(!inQuote && *ptr == ' ')
-      break;
+    while(*ptr) {
+        offset++;
+        if (inQuote && *ptr == '\"') {
+            offset++;
+            break;
+        }
+        if (!inQuote && *ptr == ' ')
+            break;
+        ptr++;
+    }
+    strncpy(cArgsClean, cArgs + offset, 2047);
+    cArgsClean[2048] = 0;  
 
-    ptr++;
-  }
-  strncpy(cArgsClean, cArgs + offset, 2047);
-  cArgsClean[2048] = 0;  
-
-  //Build the create process call
+    //Build the create process call
 	sprintf(cLine, "%s.exe %s", module_name, cArgsClean);
   
 	// create process in suspended mode
@@ -190,24 +140,13 @@ main(int argc, char* argv[])
 	STARTUPINFO sInfo;
 	memset(&sInfo, 0, sizeof(STARTUPINFO));
 	sInfo.cb = sizeof(STARTUPINFO);
-  //std::cout << "Calling `" << cLine << "`" << std::endl;
-	if (!CreateProcess(NULL,
-				  cLine, 
-				  NULL,
-				  NULL,
-				  FALSE,
-				  CREATE_SUSPENDED,
-				  NULL,
-				  NULL,
-				  &sInfo,
-				  &pInfo))
-	{
+
+	if (!CreateProcess(NULL, cLine, NULL, NULL, FALSE, 
+	                   CREATE_SUSPENDED, NULL, NULL, &sInfo, &pInfo)) {
         fprintf(stderr, "ERROR: Could not create process.\n");
 		return 1;
 	}
-
-	if (!CreateNamedPipes(pInfo.dwProcessId))
-	{
+	if (!CreateNamedPipes(pInfo.dwProcessId)) {
         fprintf(stderr, "ERROR: Could not create named pipes.\n");
 		return 1;
 	}
