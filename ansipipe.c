@@ -155,7 +155,7 @@ HANDLE handle_cerr;
 #define MAX_ARG 16              // max number of args in an escape sequence
 int state;                      // automata state
 char prefix;                    // escape sequence prefix ( '[' or '(' );
-char prefix2;			         // secondary prefix ( '?' );
+char prefix2;                   // secondary prefix ( '?' );
 char suffix;                    // escape sequence suffix
 int es_argc;                    // escape sequence args count
 int es_argv[MAX_ARG];           // escape sequence args
@@ -711,8 +711,8 @@ void utf8_fprint(FILE *stream, char *buffer)
     wchar_t wide_buffer[length];
     // convert UTF-8 -> UTF-16
     MultiByteToWideChar(CP_UTF8, 0, buffer, -1, (LPWSTR)wide_buffer, length);
-	fprintf(stream, "%S", wide_buffer);
-	fflush(stream);
+    fprintf(stream, "%S", wide_buffer);
+    fflush(stream);
 }
 
 bool utf8_read(char *buffer, long buflen, long *count)
@@ -721,8 +721,8 @@ bool utf8_read(char *buffer, long buflen, long *count)
     // (RFC 3629) so this should fit in the char buffer when expanded
     wchar_t wide_buffer[buflen / 4];
     long wcount;
-	if (!ReadConsole(handle_cin, wide_buffer, buflen / 4, &wcount, NULL))
-		return false;
+    if (!ReadConsole(handle_cin, wide_buffer, buflen / 4, &wcount, NULL))
+        return false;
     int length = WideCharToMultiByte(CP_UTF8, 0, wide_buffer, -1, NULL, 0, NULL, NULL);
     if (length >= buflen) {
         fprintf(stderr, "ERROR: UTF-8 buffer overflow.\n");
@@ -749,23 +749,23 @@ HANDLE cout_pipe, cin_pipe, cerr_pipe;
 // Parameter: process id
 bool pipes_create(long pid) 
 {
-	wchar_t name[256];
-	swprintf(name, L"\\\\.\\pipe\\%dcout", pid);
-	if (INVALID_HANDLE_VALUE == (cout_pipe = CreateNamedPipe(
-	            name, PIPE_ACCESS_INBOUND, PIPE_TYPE_BYTE | PIPE_READMODE_BYTE,
-		        1, PIPES_BUFLEN, PIPES_BUFLEN, PIPES_TIMEOUT, NULL)))
-		return 0;
-	swprintf(name, L"\\\\.\\pipe\\%dcin", pid);
-	if (INVALID_HANDLE_VALUE == (cin_pipe = CreateNamedPipe(
-	            name, PIPE_ACCESS_OUTBOUND, PIPE_TYPE_BYTE | PIPE_READMODE_BYTE,
-				1, PIPES_BUFLEN, PIPES_BUFLEN, PIPES_TIMEOUT, NULL)))
-		return 0;
-	swprintf(name, L"\\\\.\\pipe\\%dcerr", pid);
-	if (INVALID_HANDLE_VALUE == (cerr_pipe = CreateNamedPipe(
-	            name, PIPE_ACCESS_INBOUND, PIPE_TYPE_BYTE | PIPE_READMODE_BYTE,
-				1, PIPES_BUFLEN, PIPES_BUFLEN, PIPES_TIMEOUT, NULL)))
-		return 0;
-	return 1;
+    wchar_t name[256];
+    swprintf(name, L"\\\\.\\pipe\\%dcout", pid);
+    if (INVALID_HANDLE_VALUE == (cout_pipe = CreateNamedPipe(
+                name, PIPE_ACCESS_INBOUND, PIPE_TYPE_BYTE | PIPE_READMODE_BYTE,
+                1, PIPES_BUFLEN, PIPES_BUFLEN, PIPES_TIMEOUT, NULL)))
+        return 0;
+    swprintf(name, L"\\\\.\\pipe\\%dcin", pid);
+    if (INVALID_HANDLE_VALUE == (cin_pipe = CreateNamedPipe(
+                name, PIPE_ACCESS_OUTBOUND, PIPE_TYPE_BYTE | PIPE_READMODE_BYTE,
+                1, PIPES_BUFLEN, PIPES_BUFLEN, PIPES_TIMEOUT, NULL)))
+        return 0;
+    swprintf(name, L"\\\\.\\pipe\\%dcerr", pid);
+    if (INVALID_HANDLE_VALUE == (cerr_pipe = CreateNamedPipe(
+                name, PIPE_ACCESS_INBOUND, PIPE_TYPE_BYTE | PIPE_READMODE_BYTE,
+                1, PIPES_BUFLEN, PIPES_BUFLEN, PIPES_TIMEOUT, NULL)))
+        return 0;
+    return 1;
 }
 
 // Close all named pipes
@@ -773,58 +773,58 @@ void pipes_close()
 {
     // Give pipes a chance to flush
     Sleep(100);
-	CloseHandle(cout_pipe);
-	CloseHandle(cerr_pipe);
-	CloseHandle(cin_pipe);
+    CloseHandle(cout_pipe);
+    CloseHandle(cerr_pipe);
+    CloseHandle(cin_pipe);
 }
 
 // Thread function that handles incoming bytestreams to be output on stdout
 void pipes_cout_thread(void* dummy) 
 {
     // we're sending UTF-8 through these pipes
-	char buffer[PIPES_BUFLEN];
-	long count = 0;
-	ConnectNamedPipe(cout_pipe, NULL);
-	while (ReadFile(cout_pipe, buffer, PIPES_BUFLEN, &count, NULL)) {
-		buffer[count] = 0;
-		ansi_print(buffer);
-	}
+    char buffer[PIPES_BUFLEN];
+    long count = 0;
+    ConnectNamedPipe(cout_pipe, NULL);
+    while (ReadFile(cout_pipe, buffer, PIPES_BUFLEN, &count, NULL)) {
+        buffer[count] = 0;
+        ansi_print(buffer);
+    }
 }
 
 // Thread function that handles incoming bytestreams to be outputed on stderr
 void pipes_cerr_thread(void* dummy) 
 {
-	char buffer[PIPES_BUFLEN];
-	long count = 0;
-	ConnectNamedPipe(cerr_pipe, NULL);
-	while (ReadFile(cerr_pipe, buffer, PIPES_BUFLEN, &count, NULL)) {
-		buffer[count] = 0;
+    char buffer[PIPES_BUFLEN];
+    long count = 0;
+    ConnectNamedPipe(cerr_pipe, NULL);
+    while (ReadFile(cerr_pipe, buffer, PIPES_BUFLEN, &count, NULL)) {
+        buffer[count] = 0;
         // no ansi escape sequences for stderr
         utf8_fprint(stderr, buffer);
-	}
+    }
 }
 
 // Thread function that handles incoming bytestreams from stdin
 void pipes_cin_thread(void* dummy)
 {
     char buffer[PIPES_BUFLEN];
-	long countr = 0;
-	long countw = 0;
-	ConnectNamedPipe(cin_pipe, NULL);
-	for(;;) {
+    long countr = 0;
+    long countw = 0;
+    ConnectNamedPipe(cin_pipe, NULL);
+    for(;;) {
         if (!utf8_read(buffer, PIPES_BUFLEN, &countr))
             break;
-		if (!WriteFile(cin_pipe, buffer, countr, &countw, NULL))
-			break;
-	}
+        if (!WriteFile(cin_pipe, buffer, countr, &countw, NULL))
+            break;
+    }
 }
 
 // Start handler pipe handler threads
 void pipes_start_threads()
 {
-	_beginthread(pipes_cin_thread, 0, NULL);
-	_beginthread(pipes_cout_thread, 0, NULL);
-	_beginthread(pipes_cerr_thread, 0, NULL);
+    _beginthread(pipes_cin_thread, 0, NULL);
+    _beginthread(pipes_cout_thread, 0, NULL);
+    _beginthread(pipes_cerr_thread, 0, NULL);
 }
 
 
@@ -871,32 +871,32 @@ int main(int argc, char* argv[])
         wcscat(cmd_line, wide_buffer);
     }
 
-	// spawn child process in suspended mode and create pipes
-	PROCESS_INFORMATION pinfo;
-	STARTUPINFO sinfo;
-	memset(&sinfo, 0, sizeof(STARTUPINFO));
-	sinfo.cb = sizeof(STARTUPINFO);
-	if (!CreateProcess(NULL, cmd_line, NULL, NULL, FALSE, 
-	                   CREATE_SUSPENDED, NULL, NULL, &sinfo, &pinfo)) {
+    // spawn child process in suspended mode and create pipes
+    PROCESS_INFORMATION pinfo;
+    STARTUPINFO sinfo;
+    memset(&sinfo, 0, sizeof(STARTUPINFO));
+    sinfo.cb = sizeof(STARTUPINFO);
+    if (!CreateProcess(NULL, cmd_line, NULL, NULL, FALSE, 
+                       CREATE_SUSPENDED, NULL, NULL, &sinfo, &pinfo)) {
         fprintf(stderr, "ERROR: Could not create process.\n");
-		return 1;
-	}
-	if (!pipes_create(pinfo.dwProcessId)) {
+        return 1;
+    }
+    if (!pipes_create(pinfo.dwProcessId)) {
         fprintf(stderr, "ERROR: Could not create named pipes.\n");
-		return 1;
-	}
+        return 1;
+    }
 
-	// start the pipe threads and resume child process
+    // start the pipe threads and resume child process
     ansi_init();
     pipes_start_threads();
-	ResumeThread(pinfo.hThread);
-	
-	// wait for child process to exit and close pipes
-	WaitForSingleObject(pinfo.hProcess, INFINITE);
-	pipes_close();
-	ansi_close();
-	ULONG exit_code;
-	GetExitCodeProcess(pinfo.hProcess, (ULONG*) &exit_code);
-	return exit_code;
+    ResumeThread(pinfo.hThread);
+
+    // wait for child process to exit and close pipes
+    WaitForSingleObject(pinfo.hProcess, INFINITE);
+    pipes_close();
+    ansi_close();
+    ULONG exit_code;
+    GetExitCodeProcess(pinfo.hProcess, (ULONG*) &exit_code);
+    return exit_code;
 }
 
