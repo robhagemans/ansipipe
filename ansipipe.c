@@ -36,12 +36,15 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 ORIGINAL SOURCE: Win32::Console::ANSI
 =====================================
 The following is a list of modifications of Win32::Console::ANSI
-(RH 2015-01-27) Remove DLL injection and API hooking code
-(RH 2015-01-27) Remove Win9x support code
-(RH 2015-01-27) Add #define macros to allow compilation under MinGW GCC
-(RH 2015-01-27) Add ansi_ API functions 
-(RH 2015-01-28) Change signature of ParseAndPrint to work with one hDev only
-(RH 2015-01-28) Remove codepage-conversion sequences ('\x1b(')
+(RH 2015-01-27) 
+-   Remove DLL injection and API hooking code
+-   Remove Win9x support code
+-   Add #define macros to allow compilation under MinGW GCC
+(RH 2015-01-28) 
+-   Change signature of ParseAndPrint to work with one hDev only
+-   Remove codepage-conversion sequences ('\x1b(')
+In other words, I have extracted only the escape sequence parser from the
+original source and then modified that.
 
 Below are the original copyright and licence notices of Win32::Console::ANSI.
 Please note that the present modified file is released under slightly more 
@@ -85,6 +88,13 @@ the internet at http://dev.perl.org/licenses/artistic.html.
 /*
 ORIGINAL SOURCE: dualsubsystem
 ==============================
+The following is a list of modifications to dualsysystem
+(RH 2015-01-28) 
+-   Change whitespace and naming conventions for readability
+-   Replace command-line parsing code
+-   Implement Unicode support, UTF8 conversions
+-   Send stdout pipe output to ansi parser
+
 dualsubsystem can be found at https://code.google.com/p/dualsubsystem/.
 I have not been able to find a copyright notice by dualsubsystem's author,
 who is identified on Google Code as 
@@ -771,8 +781,7 @@ ParseAndPrintString(LPCVOID lpBuffer,
 
 //-----------------------------------------------------------------------------
 // 
-//  ANSI|pipe glue functions
-//  Rob Hagemans 2015
+//  ANSI|pipe glue functions - RH 2015
 // 
 //-----------------------------------------------------------------------------
  
@@ -839,8 +848,7 @@ bool utf8_read(char *buffer, long buflen, long *count)
 
 // ----------------------------------------------------------------------------
 //
-// named pipes
-// derived from dualsubsystem
+// named pipes (dualsubsystem)
 // 
 //-----------------------------------------------------------------------------
 
@@ -930,6 +938,14 @@ void pipes_start_threads()
 	_beginthread(pipes_cout_thread, 0, NULL);
 	_beginthread(pipes_cerr_thread, 0, NULL);
 }
+
+
+// ----------------------------------------------------------------------------
+//
+// main function
+// spawn child process, setup pipes, setup ansi parser
+// 
+//-----------------------------------------------------------------------------
 
 
 int main(int argc, char* argv[])
