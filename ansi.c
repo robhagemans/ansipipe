@@ -728,10 +728,9 @@ void InterpretEscSeq( )
 // the last arguments are processed (no es_argv[] overflow).
 //-----------------------------------------------------------------------------
 
-BOOL
+DWORD
 ParseAndPrintString(LPCVOID lpBuffer,
-                    DWORD nNumberOfBytesToWrite,
-                    LPDWORD lpNumberOfBytesWritten
+                    DWORD nNumberOfBytesToWrite
                     )
 {
   DWORD i;
@@ -795,8 +794,7 @@ ParseAndPrintString(LPCVOID lpBuffer,
     }
   }
   FlushBuffer();
-  *lpNumberOfBytesWritten = nNumberOfBytesToWrite - i;
-  return (i == 0);
+  return (nNumberOfBytesToWrite - i);
 }
 
 //-----------------------------------------------------------------------------
@@ -829,8 +827,7 @@ void ansi_close()
 
 void ansi_print(wchar_t *buffer)
 {
-    long dummy = 0;
-    ParseAndPrintString(buffer, wcslen(buffer), &dummy);
+    ParseAndPrintString(buffer, wcslen(buffer));
 }
 
 
