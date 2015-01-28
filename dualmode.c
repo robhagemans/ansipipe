@@ -99,16 +99,14 @@ void pipes_start_threads()
 int main(int argc, char* argv[])
 {
 	// create command line string based on program name
-    TCHAR cmdline[2048];
     TCHAR module_name[MAX_PATH+1];
     GetModuleFileName(0, module_name, MAX_PATH);
     module_name[MAX_PATH] = 0;
     module_name[strlen(module_name)-4] = 0;
-
     TCHAR args[2048];
     TCHAR args_clean[2048];
     strncpy(args, GetCommandLine(), 2047);
-    args[2048] = 0;
+    args[2047] = 0;
 
     // Find where to cut out the program name (which may be quoted)
     int offset = 0;
@@ -130,8 +128,9 @@ int main(int argc, char* argv[])
         ptr++;
     }
     strncpy(args_clean, args + offset, 2047);
-    args_clean[2048] = 0;  
+    args_clean[2047] = 0;  
 
+    TCHAR cmdline[2048];
     // Build the create-process call
 	sprintf(cmdline, "%s.exe %s", module_name, args_clean);
   
