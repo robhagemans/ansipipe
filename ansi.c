@@ -797,11 +797,9 @@ void ansi_print(char *buffer)
     // get required buffer length
     int length = MultiByteToWideChar(CP_UTF8, 0, buffer, -1, NULL, 0);
     wchar_t wide_buffer[length];
-    if (wide_buffer != NULL) {
-        // convert UTF-8 -> UTF-16
-        MultiByteToWideChar(CP_UTF8, 0, buffer, -1, (LPWSTR)wide_buffer, length);
-        ParseAndPrintString(wide_buffer, length);
-    }
+    // convert UTF-8 -> UTF-16
+    MultiByteToWideChar(CP_UTF8, 0, buffer, -1, (LPWSTR)wide_buffer, length);
+    ParseAndPrintString(wide_buffer, length);
 }
 
 
