@@ -2,9 +2,12 @@
 //
 
 #include <windows.h>
-#include <iostream>
 #include <process.h> /*_beginthread, _endthread*/
 #include <stdio.h>
+#include <string.h>
+// define bool, for C < C99
+typedef enum { false, true } bool;
+
 
 HANDLE coutPipe, cinPipe, cerrPipe;
 #define CONNECTIMEOUT 1000
@@ -62,10 +65,10 @@ CloseNamedPipes()
 }
 
 
-// Thread function that handles incoming bytesreams to be outputed
+// Thread function that handles incoming bytestreams to be outputed
 // on stdout
 void 
-OutPipeTh(void*)
+OutPipeTh(void* dummy)
 {
 	TCHAR buffer[1024];
 	DWORD count = 0;
@@ -75,14 +78,16 @@ OutPipeTh(void*)
 	while(ReadFile(coutPipe, buffer, 1024, &count, NULL))
 	{
 		buffer[count] = 0;
-    std::cout << buffer << std::flush;
+        fprintf(stdout, "%s", buffer);
+        fflush(stdout);
+//    std::cout << buffer << std::flush;
 	}
 }
 
-// Thread function that handles incoming bytesreams to be outputed
+// Thread function that handles incoming bytestreams to be outputed
 // on stderr
 void 
-ErrPipeTh(void*)
+ErrPipeTh(void* dummy)
 {
 	TCHAR buffer[1024];
 	DWORD count = 0;
@@ -92,13 +97,15 @@ ErrPipeTh(void*)
 	while(ReadFile(cerrPipe, buffer, 1024, &count, NULL))
 	{
 		buffer[count] = 0;
-    std::cerr << buffer << std::flush;
+		fprintf(stderr, "%s", buffer);
+		fflush(stderr);
+//    std::cerr << buffer << std::flush;
 	}
 }
 
-// Thread function that handles incoming bytesreams from stdin
+// Thread function that handles incoming bytestreams from stdin
 void 
-InPipeTh(void*)
+InPipeTh(void* dummy)
 {
 	TCHAR buffer[1024];
 	DWORD countr = 0;
@@ -135,7 +142,7 @@ void RunPipeThreads()
 
 
 int 
-main(int , char* argv[])
+main(int argc, char* argv[])
 {
 	// create command line string based on program name
   TCHAR cLine[2048];
@@ -146,7 +153,7 @@ main(int , char* argv[])
   
   TCHAR cArgs[2048];
   TCHAR cArgsClean[2048];
-  strncpy_s(cArgs, GetCommandLine(), 2047);
+  strncpy(cArgs, GetCommandLine(), 2047);
   cArgs[2048] = 0;
 
   //Find where to cut out the program name (which may be quoted)
@@ -172,7 +179,7 @@ main(int , char* argv[])
 
     ptr++;
   }
-  strncpy_s(cArgsClean, cArgs + offset, 2047);
+  strncpy(cArgsClean, cArgs + offset, 2047);
   cArgsClean[2048] = 0;  
 
   //Build the create process call
@@ -195,13 +202,13 @@ main(int , char* argv[])
 				  &sInfo,
 				  &pInfo))
 	{
-    std::cerr << "ERROR: Could not create process." << std::endl;
+        fprintf(stderr, "ERROR: Could not create process.\n");
 		return 1;
 	}
 
 	if (!CreateNamedPipes(pInfo.dwProcessId))
 	{
-    std::cerr << "ERROR: Could not create named pipes." << std::endl;
+        fprintf(stderr, "ERROR: Could not create named pipes.\n");
 		return 1;
 	}
 
@@ -209,14 +216,10 @@ main(int , char* argv[])
 
 	// resume process
 	ResumeThread(pInfo.hThread);
-
 	WaitForSingleObject(pInfo.hProcess, INFINITE);
-
 	CloseNamedPipes();
 
 	ULONG exitCode;
-
 	GetExitCodeProcess(pInfo.hProcess, (ULONG*)&exitCode);
-
 	return exitCode;
 }
