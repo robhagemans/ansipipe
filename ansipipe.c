@@ -142,7 +142,7 @@ typedef enum { false, true } bool;
 
 // ========== Global variables and constants
 
-// handles to standard i/o strams
+// handles to standard i/o streams
 HANDLE handle_cout;
 HANDLE handle_cin;
 HANDLE handle_cerr;
@@ -779,7 +779,7 @@ void pipes_close()
 }
 
 // Thread function that handles incoming bytestreams to be output on stdout
-void pipes_cout_thread(void* dummy) 
+void pipes_cout_thread(void *dummy) 
 {
     // we're sending UTF-8 through these pipes
     char buffer[PIPES_BUFLEN];
@@ -792,7 +792,7 @@ void pipes_cout_thread(void* dummy)
 }
 
 // Thread function that handles incoming bytestreams to be outputed on stderr
-void pipes_cerr_thread(void* dummy) 
+void pipes_cerr_thread(void *dummy) 
 {
     char buffer[PIPES_BUFLEN];
     long count = 0;
@@ -805,7 +805,7 @@ void pipes_cerr_thread(void* dummy)
 }
 
 // Thread function that handles incoming bytestreams from stdin
-void pipes_cin_thread(void* dummy)
+void pipes_cin_thread(void *dummy)
 {
     char buffer[PIPES_BUFLEN];
     long countr = 0;
@@ -836,7 +836,7 @@ void pipes_start_threads()
 //-----------------------------------------------------------------------------
 
 
-int main(int argc, char* argv[])
+int main(int argc, char *argv[])
 {
     handle_cout = GetStdHandle(STD_OUTPUT_HANDLE);
     handle_cin = GetStdHandle(STD_INPUT_HANDLE);
