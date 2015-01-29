@@ -727,32 +727,93 @@ void utf8_fprint(FILE *stream, char *buffer)
 
 bool utf8_read(char *buffer, long buflen, long *count)
 {
-    // one fourth of buflen, as one wchar of utf16 is at most 4 chars of utf8
-    // (RFC 3629) so this should fit in the char buffer when expanded
-    // take double the size to allow for a string of CR -> CRLF
-    wchar_t wide_buffer[buflen / 2];
-    INPUT_RECORD events[buflen / 4];
-    
+    // event buffer size: 
+    // -  for utf8, buflen/4 is OK as one wchar is at most 4 chars of utf8
+    // -  escape codes are at most 5 ascii-128 wchars; translate into 5 chars
+    // so buflen/5 events should fit in buflen wchars and buflen utf8 chars.
+    wchar_t wide_buffer[buflen];
+    INPUT_RECORD events[buflen / 5];
     long ecount;
-    if (!ReadConsoleInput(handle_cin, events, buflen / 4, &ecount))
+    if (!ReadConsoleInput(handle_cin, events, buflen / 5, &ecount))
         return false;
     int i;
     int wcount = 0;
     for (i = 0; i < ecount; ++i) {
-        if (events[i].EventType == KEY_EVENT && events[i].Event.KeyEvent.bKeyDown) 
-            wide_buffer[wcount++] = events[i].Event.KeyEvent.uChar.UnicodeChar;
-        // safety check
-        if (wcount >= buflen / 4) {
-            fprintf(stderr, "ERROR: Input buffer overflow.\n");
-            return false;
+        if (events[i].EventType == KEY_EVENT) {
+            if (events[i].Event.KeyEvent.bKeyDown) {
+                // insert ansi escape codes for arrow keys etc.
+                switch (events[i].Event.KeyEvent.wVirtualKeyCode) {
+                case VK_PRIOR:
+                    wide_buffer[wcount++] = L'\x1b';
+                    wide_buffer[wcount++] = L'\x5b';
+                    wide_buffer[wcount++] = L'\x35';
+                    wide_buffer[wcount++] = L'\x7e';
+                    break;
+                case VK_NEXT:
+                    wide_buffer[wcount++] = L'\x1b';
+                    wide_buffer[wcount++] = L'\x5b';
+                    wide_buffer[wcount++] = L'\x36';
+                    wide_buffer[wcount++] = L'\x7e';
+                    break;
+                case VK_END:
+                    wide_buffer[wcount++] = L'\x1b';
+                    wide_buffer[wcount++] = L'\x4f';
+                    wide_buffer[wcount++] = L'\x46';
+                    break;
+                case VK_HOME:
+                    wide_buffer[wcount++] = L'\x1b';
+                    wide_buffer[wcount++] = L'\x4f';
+                    wide_buffer[wcount++] = L'\x48';
+                    break;
+                case VK_LEFT:
+                    wide_buffer[wcount++] = L'\x1b';
+                    wide_buffer[wcount++] = L'\x5b';
+                    wide_buffer[wcount++] = L'\x44';
+                    break;
+                case VK_UP:
+                    wide_buffer[wcount++] = L'\x1b';
+                    wide_buffer[wcount++] = L'\x5b';
+                    wide_buffer[wcount++] = L'\x41';
+                    break;
+                case VK_RIGHT:
+                    wide_buffer[wcount++] = L'\x1b';
+                    wide_buffer[wcount++] = L'\x5b';
+                    wide_buffer[wcount++] = L'\x43';
+                    break;
+                case VK_DOWN:
+                    wide_buffer[wcount++] = L'\x1b';
+                    wide_buffer[wcount++] = L'\x5b';
+                    wide_buffer[wcount++] = L'\x42';
+                    break;
+                case VK_INSERT:
+                    wide_buffer[wcount++] = L'\x1b';
+                    wide_buffer[wcount++] = L'\x5b';
+                    wide_buffer[wcount++] = L'\x32';
+                    wide_buffer[wcount++] = L'\x7e';
+                    break;
+                case VK_DELETE:
+                    wide_buffer[wcount++] = L'\x1b';
+                    wide_buffer[wcount++] = L'\x5b';
+                    wide_buffer[wcount++] = L'\x33';
+                    wide_buffer[wcount++] = L'\x7e';
+                    break;
+                default:
+                    wide_buffer[wcount++] = events[i].Event.KeyEvent.uChar.UnicodeChar;
+                    // echo
+                    //printf("%c", wide_buffer[wcount]);
+                }
+                // safety check
+                if (wcount >= buflen / 4) {
+                    fprintf(stderr, "ERROR: Input buffer overflow.\n");
+                    return false;
+                }
+                // CR -> CRLF
+                //if (wide_buffer[wcount] == L'\r') 
+                //    wide_buffer[wcount++] = L'\n';
+            }
         }
-        // CR -> CRLF
-        //if (wide_buffer[wcount] == L'\r') 
-        //    wide_buffer[wcount++] = L'\n';
     }
     wide_buffer[wcount] = 0;
-    // echo
-    //printf("%S", wide_buffer);
     // find UTF8 string length    
     int length = WideCharToMultiByte(CP_UTF8, 0, wide_buffer, -1, NULL, 0, NULL, NULL);
     // safety check
