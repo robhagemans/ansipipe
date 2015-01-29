@@ -136,6 +136,7 @@ THE SOFTWARE.
 #include <stdio.h>
 #include <process.h> /*_beginthread, _endthread*/
 #include <string.h>
+#include <wctype.h>
 
 // define bool, for C < C99
 typedef enum { false, true } bool;
@@ -1005,14 +1006,8 @@ void pipes_start_threads()
 // buffer for command-line arguments to child process
 #define ARG_BUFLEN 2048
 
-int main(int argc, char *argv[])
+void build_command_line(int argc, char *argv[], wchar_t *buffer, long buflen)
 {
-    handle_cout = GetStdHandle(STD_OUTPUT_HANDLE);
-    handle_cin = GetStdHandle(STD_INPUT_HANDLE);
-    handle_cerr = GetStdHandle(STD_ERROR_HANDLE);
-
-    /* build command line */
-    
     // get full program name, exclude extension
     wchar_t module_name[MAX_PATH+1];
     GetModuleFileName(0, module_name, MAX_PATH);
@@ -1020,14 +1015,14 @@ int main(int argc, char *argv[])
     module_name[wcslen(module_name)-4] = 0;
 
     // create command line for child process
-    wchar_t cmd_line[ARG_BUFLEN] = L"";
+    buffer[0] = L'\0';
     int count = wcslen(module_name) + 4;
-    if (count > ARG_BUFLEN) {
+    if (count > buflen) {
         fprintf(stderr, "ERROR: Application name too long.\n");
-        return 1;
+        return;
     }
-    wcscat(cmd_line, module_name);
-    wcscat(cmd_line, L".exe");
+    wcscat(buffer, module_name);
+    wcscat(buffer, L".exe");
  
     // write all arguments to child command line
     int i = 0;
@@ -1037,13 +1032,25 @@ int main(int argc, char *argv[])
         // convert UTF-8 -> UTF-16
         MultiByteToWideChar(CP_UTF8, 0, argv[i], -1, wide_buffer, length);
         count += length + 1;
-        if (count >= ARG_BUFLEN) break;
-        wcscat(cmd_line, L" ");
-        wcscat(cmd_line, wide_buffer);
+        if (count >= buflen) break;
+        wcscat(buffer, L" ");
+        wcscat(buffer, wide_buffer);
     }
+}
 
+int main(int argc, char *argv[])
+{
+    handle_cout = GetStdHandle(STD_OUTPUT_HANDLE);
+    handle_cin = GetStdHandle(STD_INPUT_HANDLE);
+    handle_cerr = GetStdHandle(STD_ERROR_HANDLE);
+
+    /* build command line */
+
+    wchar_t cmd_line[ARG_BUFLEN];
+    build_command_line(argc, argv, cmd_line, ARG_BUFLEN);
+ 
     /* start ansi interpreter */
-    
+
     ansi_init();
 
     /* start pipes */
