@@ -147,27 +147,25 @@ int wcscasecmp(wchar_t *a, wchar_t *b)
     return (towupper(*a) != towupper(*b));
 }
 
-// ========== Global variables and constants
-
 // handles to standard i/o streams
 HANDLE handle_cout;
 HANDLE handle_cin;
 HANDLE handle_cerr;
 
-#define ESC     '\x1B'          // ESCape character
-#define LF      '\x0A'          // Line Feed
+// handles to named pipes
+HANDLE cout_pipe;
+HANDLE cin_pipe;
+HANDLE cerr_pipe;
+
+
 
 #define MAX_TITLE_SIZE 1024     // max title string console size
-
 #define MAX_ARG 16              // max number of args in an escape sequence
-int state;                      // automata state
-char prefix;                    // escape sequence prefix ( '[' or '(' );
-char prefix2;                   // secondary prefix ( '?' );
-char suffix;                    // escape sequence suffix
-int es_argc;                    // escape sequence args count
-int es_argv[MAX_ARG];           // escape sequence args
 
-// color constants
+
+// ============================================================================
+// Colour constants
+// ============================================================================
 
 #define FOREGROUND_BLACK 0
 #define FOREGROUND_WHITE FOREGROUND_RED|FOREGROUND_GREEN|FOREGROUND_BLUE
@@ -221,27 +219,23 @@ int foreground = FOREGROUND_WHITE;
 int background = BACKGROUND_BLACK;
 int foreground_default = FOREGROUND_WHITE;
 int background_default = BACKGROUND_BLACK;
-bool bold = false;
-bool underline = false;
-bool rvideo = false;
-bool concealed = false;
-
-// saved cursor position
-COORD save_pos = {0, 0};
 
 
-// ========== Print Buffer functions
+// ============================================================================
+// Print Buffer
+// ============================================================================
 
 #define PBUF_SIZE 256
+
+// characters are concealed
+// this is an attribute, but pbuf accesses it
+bool concealed = false;
+
 
 int pbuf_nchar = 0;
 wchar_t pbuf[PBUF_SIZE];
 
-//-----------------------------------------------------------------------------
-//  pbuf_flush()
 //  write buffer to console
-//-----------------------------------------------------------------------------
-
 void pbuf_flush()
 {
     if (pbuf_nchar <= 0) return;
@@ -250,11 +244,7 @@ void pbuf_flush()
     pbuf_nchar = 0;
 }
 
-//-----------------------------------------------------------------------------
-//  pbuf_push( char c)
 //  add a character in the buffer and flush the buffer if it is full
-//-----------------------------------------------------------------------------
-
 void pbuf_push(wchar_t c)
 {
     // skip NUL
@@ -265,22 +255,32 @@ void pbuf_push(wchar_t c)
     }
 }
 
-// ========== Print functions
 
-//-----------------------------------------------------------------------------
-//   ansi_interpret_seq( )
-// Interprets the last escape sequence scanned by ParseAndPrintString
-//   prefix             escape sequence prefix
-//   es_argc            escape sequence args count
-//   es_argv[]          escape sequence args array
-//   suffix             escape sequence suffix
-//
+// ============================================================================
+// Parser
+// ============================================================================
+
+#define ESC     '\x1B'          // ESCape character
+#define LF      '\x0A'          // Line Feed
+
+// current escape sequence state:
 // for instance, with \e[33;45;1m we have
 // prefix = '[',
 // es_argc = 3, es_argv[0] = 33, es_argv[1] = 45, es_argv[2] = 1
 // suffix = 'm'
-//-----------------------------------------------------------------------------
+char prefix;                    // escape sequence prefix ( '[' or '(' );
+char prefix2;                   // secondary prefix ( '?' );
+char suffix;                    // escape sequence suffix
+int es_argc;                    // escape sequence args count
+int es_argv[MAX_ARG];           // escape sequence args
+// saved cursor position
+COORD save_pos = {0, 0};
+// current attributes
+bool bold = false;
+bool underline = false;
+bool rvideo = false;
 
+// interpret the last escape sequence scanned by ansi_print()
 void ansi_interpret_seq()
 {
     int i;
@@ -609,14 +609,14 @@ void ansi_interpret_seq()
 }
 
 
-//-----------------------------------------------------------------------------
-//  ansi_print(char* buffer)
-// Parses the string buffer, interprets the escapes sequences and prints the
+// Parse the string buffer, interpret the escape sequences and print the
 // characters on the console.
-// The lexer is a four states automata.
+// The lexer is a four-state automaton.
 // If the number of arguments es_argc > MAX_ARG, only the MAX_ARG-1 firsts and
 // the last arguments are processed (no es_argv[] overflow).
-//-----------------------------------------------------------------------------
+
+// automaton state
+int state;
 
 void ansi_print(char *buffer)
 {
@@ -689,14 +689,13 @@ void ansi_print(char *buffer)
     pbuf_flush();
 }
 
-//-----------------------------------------------------------------------------
-// 
-//  ANSI|pipe glue functions - RH 2015
-// 
-//-----------------------------------------------------------------------------
+
+// ============================================================================
+// ANSI|pipe glue
+// ============================================================================
  
 // stored initial console attribute
-WORD init_attribute;
+long init_attribute;
 
 void ansi_init()
 {
@@ -769,16 +768,14 @@ bool utf8_read(char *buffer, long buflen, long *count)
 }
 
 
-// ----------------------------------------------------------------------------
-//
-// named pipes (dualsubsystem)
-// 
-//-----------------------------------------------------------------------------
+// ============================================================================
+// named pipes 
+// ============================================================================
 
-HANDLE cout_pipe, cin_pipe, cerr_pipe;
+// pipe globals
 #define PIPES_TIMEOUT 1000
 #define PIPES_BUFLEN 1024
-#define ARG_BUFLEN 2048
+
 
 // Create named pipes for stdin, stdout and stderr
 // Parameter: process id
@@ -863,13 +860,13 @@ void pipes_start_threads()
 }
 
 
-// ----------------------------------------------------------------------------
-//
-// main function
-// spawn child process, setup pipes, setup ansi parser
-// 
-//-----------------------------------------------------------------------------
 
+// ============================================================================
+// main function
+// ============================================================================
+
+// buffer for command-line arguments to child process
+#define ARG_BUFLEN 2048
 
 int main(int argc, char *argv[])
 {
