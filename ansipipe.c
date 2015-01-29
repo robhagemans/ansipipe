@@ -797,6 +797,82 @@ bool utf8_read(char *buffer, long buflen, long *count)
                     wide_buffer[wcount++] = L'\x33';
                     wide_buffer[wcount++] = L'\x7e';
                     break;
+                case VK_F1:
+                    wide_buffer[wcount++] = L'\x1b';
+                    wide_buffer[wcount++] = L'\x4f';
+                    wide_buffer[wcount++] = L'\x50';
+                    break;
+                case VK_F2:
+                    wide_buffer[wcount++] = L'\x1b';
+                    wide_buffer[wcount++] = L'\x4f';
+                    wide_buffer[wcount++] = L'\x51';
+                    break;
+                case VK_F3:
+                    wide_buffer[wcount++] = L'\x1b';
+                    wide_buffer[wcount++] = L'\x4f';
+                    wide_buffer[wcount++] = L'\x52';
+                    break;
+                case VK_F4:
+                    wide_buffer[wcount++] = L'\x1b';
+                    wide_buffer[wcount++] = L'\x4f';
+                    wide_buffer[wcount++] = L'\x53';
+                    break;
+                case VK_F5:
+                    wide_buffer[wcount++] = L'\x1b';
+                    wide_buffer[wcount++] = L'\x5b';
+                    wide_buffer[wcount++] = L'\x31';
+                    wide_buffer[wcount++] = L'\x35';
+                    wide_buffer[wcount++] = L'\x7e';
+                    break;
+                case VK_F6:
+                    wide_buffer[wcount++] = L'\x1b';
+                    wide_buffer[wcount++] = L'\x5b';
+                    wide_buffer[wcount++] = L'\x31';
+                    wide_buffer[wcount++] = L'\x37';
+                    wide_buffer[wcount++] = L'\x7e';
+                    break;
+                case VK_F7:
+                    wide_buffer[wcount++] = L'\x1b';
+                    wide_buffer[wcount++] = L'\x5b';
+                    wide_buffer[wcount++] = L'\x31';
+                    wide_buffer[wcount++] = L'\x38';
+                    wide_buffer[wcount++] = L'\x7e';
+                    break;
+                case VK_F8:
+                    wide_buffer[wcount++] = L'\x1b';
+                    wide_buffer[wcount++] = L'\x5b';
+                    wide_buffer[wcount++] = L'\x31';
+                    wide_buffer[wcount++] = L'\x39';
+                    wide_buffer[wcount++] = L'\x7e';
+                    break;
+                case VK_F9:
+                    wide_buffer[wcount++] = L'\x1b';
+                    wide_buffer[wcount++] = L'\x5b';
+                    wide_buffer[wcount++] = L'\x32';
+                    wide_buffer[wcount++] = L'\x30';
+                    wide_buffer[wcount++] = L'\x7e';
+                    break;
+                case VK_F10:
+                    wide_buffer[wcount++] = L'\x1b';
+                    wide_buffer[wcount++] = L'\x5b';
+                    wide_buffer[wcount++] = L'\x32';
+                    wide_buffer[wcount++] = L'\x31';
+                    wide_buffer[wcount++] = L'\x7e';
+                    break;
+                case VK_F11:
+                    wide_buffer[wcount++] = L'\x1b';
+                    wide_buffer[wcount++] = L'\x5b';
+                    wide_buffer[wcount++] = L'\x32';
+                    wide_buffer[wcount++] = L'\x33';
+                    wide_buffer[wcount++] = L'\x7e';
+                    break;
+                case VK_F12:
+                    wide_buffer[wcount++] = L'\x1b';
+                    wide_buffer[wcount++] = L'\x5b';
+                    wide_buffer[wcount++] = L'\x31';
+                    wide_buffer[wcount++] = L'\x34';
+                    wide_buffer[wcount++] = L'\x7e';
+                    break;
                 default:
                     wide_buffer[wcount++] = events[i].Event.KeyEvent.uChar.UnicodeChar;
                     // echo
