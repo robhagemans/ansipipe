@@ -257,6 +257,8 @@ void pbuf_flush()
 
 void pbuf_push(wchar_t c)
 {
+    // skip NUL
+    if (!c) return;
     pbuf[pbuf_nchar++] = concealed ? ' ' : c;
     if (pbuf_nchar >= PBUF_SIZE) {
         pbuf_flush();
@@ -622,6 +624,7 @@ void ansi_print(char *buffer)
     int length = MultiByteToWideChar(CP_UTF8, 0, buffer, -1, NULL, 0);
     wchar_t wide_buffer[length];
     // convert UTF-8 -> UTF-16
+    // TODO: prevent cutting off of utf8 sequences at end of buffer!
     MultiByteToWideChar(CP_UTF8, 0, buffer, -1, wide_buffer, length);
     // start parsing
     int i;
@@ -713,11 +716,12 @@ void ansi_close()
 
 void utf8_fprint(FILE *stream, char *buffer)
 {
+    // TODO: prevent cutting off of utf8 sequences at end of buffer!
     // get required buffer length
     int length = MultiByteToWideChar(CP_UTF8, 0, buffer, -1, NULL, 0);
     wchar_t wide_buffer[length];
     // convert UTF-8 -> UTF-16
-    MultiByteToWideChar(CP_UTF8, 0, buffer, -1, (LPWSTR)wide_buffer, length);
+    MultiByteToWideChar(CP_UTF8, 0, buffer, -1, wide_buffer, length);
     fprintf(stream, "%S", wide_buffer);
     fflush(stream);
 }
@@ -726,17 +730,41 @@ bool utf8_read(char *buffer, long buflen, long *count)
 {
     // one fourth of buflen, as one wchar of utf16 is at most 4 chars of utf8
     // (RFC 3629) so this should fit in the char buffer when expanded
-    wchar_t wide_buffer[buflen / 4];
-    long wcount;
-    if (!ReadConsole(handle_cin, wide_buffer, buflen / 4, &wcount, NULL))
+    // take double the size to allow for a string of CR -> CRLF
+    wchar_t wide_buffer[buflen / 2];
+    INPUT_RECORD events[buflen / 4];
+    
+    long ecount;
+    if (!ReadConsoleInput(handle_cin, events, buflen / 4, &ecount))
         return false;
+    int i;
+    int wcount = 0;
+    for (i = 0; i < ecount; ++i) {
+        if (events[i].EventType == KEY_EVENT && events[i].Event.KeyEvent.bKeyDown) 
+            wide_buffer[wcount++] = events[i].Event.KeyEvent.uChar.UnicodeChar;
+        // safety check
+        if (wcount >= buflen / 4) {
+            fprintf(stderr, "ERROR: Input buffer overflow.\n");
+            return false;
+        }
+        // CR -> CRLF
+        //if (wide_buffer[wcount] == L'\r') 
+        //    wide_buffer[wcount++] = L'\n';
+    }
+    wide_buffer[wcount] = 0;
+    // echo
+    //printf("%S", wide_buffer);
+    // find UTF8 string length    
     int length = WideCharToMultiByte(CP_UTF8, 0, wide_buffer, -1, NULL, 0, NULL, NULL);
+    // safety check
     if (length >= buflen) {
         fprintf(stderr, "ERROR: UTF-8 buffer overflow.\n");
         return false;
     }
+    // convert to UTF-8
     WideCharToMultiByte(CP_UTF8, 0, wide_buffer, -1, buffer, length, NULL, NULL);
-    *count = length;
+    // exclude NUL terminator in reported num chars
+    *count = length-1;
     return true;
 }
 
@@ -858,7 +886,7 @@ int main(int argc, char *argv[])
     module_name[wcslen(module_name)-4] = 0;
 
     // create command line for child process
-    wchar_t cmd_line[ARG_BUFLEN];
+    wchar_t cmd_line[ARG_BUFLEN] = L"";
     int count = wcslen(module_name) + 4;
     if (count > ARG_BUFLEN) {
         fprintf(stderr, "ERROR: Application name too long.\n");
@@ -905,6 +933,10 @@ int main(int argc, char *argv[])
     long save_mode;
     GetConsoleMode(handle_cin, &save_mode);
 
+    // set mode to accept keyboard event only
+    long mode = 0; //ENABLE_WINDOW_INPUT
+    SetConsoleMode(handle_cin, mode);
+    
     // start the pipe threads and resume child process
     pipes_start_threads();
     ResumeThread(pinfo.hThread);
