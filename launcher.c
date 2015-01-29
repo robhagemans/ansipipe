@@ -280,6 +280,8 @@ COORD save_pos = {0, 0};
 bool bold = false;
 bool underline = false;
 bool rvideo = false;
+// scrolling
+SMALL_RECT scroll_region = {0, 0, 0, 0};
 
 // interpret the last escape sequence scanned by ansi_print()
 void ansi_interpret_seq()
@@ -292,7 +294,7 @@ void ansi_interpret_seq()
     COORD pos;
     SMALL_RECT rect;
     CHAR_INFO char_info;
-
+    
     if (prefix == '[') {
         if (prefix2 == '?' && (suffix == 'h' || suffix == 'l')) {
         if (es_argc == 1 && es_argv[0] == 25) {
@@ -442,7 +444,7 @@ void ansi_interpret_seq()
         pos.Y = info.dwCursorPosition.Y+es_argv[0];
         char_info.Char.AsciiChar = ' ';
         char_info.Attributes = info.wAttributes;
-        ScrollConsoleScreenBuffer(handle_cout, &rect, NULL, pos, &char_info);
+        ScrollConsoleScreenBuffer(handle_cout, &rect, &scroll_region, pos, &char_info);
         pos.X = 0;
         pos.Y = info.dwCursorPosition.Y;
         FillConsoleOutputCharacter(handle_cout, ' ', 
@@ -464,7 +466,7 @@ void ansi_interpret_seq()
         pos.Y = info.dwCursorPosition.Y;
         char_info.Char.AsciiChar = ' ';
         char_info.Attributes = info.wAttributes;
-        ScrollConsoleScreenBuffer(handle_cout, &rect, NULL, pos, &char_info);
+        ScrollConsoleScreenBuffer(handle_cout, &rect, &scroll_region, pos, &char_info);
         pos.Y = info.dwSize.Y - es_argv[0];
         FillConsoleOutputCharacter(handle_cout, ' ', 
                         info.dwSize.X * es_argv[0], pos, &written);
@@ -483,8 +485,8 @@ void ansi_interpret_seq()
         rect.Bottom = info.dwCursorPosition.Y;
         char_info.Char.AsciiChar = ' ';
         char_info.Attributes = info.wAttributes;
-        ScrollConsoleScreenBuffer(handle_cout, &rect, NULL, info.dwCursorPosition,
-                                                        &char_info);
+        ScrollConsoleScreenBuffer(handle_cout, &rect, &scroll_region, 
+                                            info.dwCursorPosition, &char_info);
         pos.X = info.dwSize.X - es_argv[0];
         pos.Y = info.dwCursorPosition.Y;
         FillConsoleOutputCharacter(handle_cout, ' ', es_argv[0], pos,
@@ -504,7 +506,8 @@ void ansi_interpret_seq()
         pos.Y = info.dwCursorPosition.Y;
         char_info.Char.AsciiChar = ' ';
         char_info.Attributes = info.wAttributes;
-        ScrollConsoleScreenBuffer(handle_cout, &rect, NULL, pos, &char_info);
+        ScrollConsoleScreenBuffer(handle_cout, &rect, &scroll_region, 
+                                                           pos, &char_info);
         FillConsoleOutputCharacter(handle_cout, ' ', es_argv[0],
                                 info.dwCursorPosition, &written);
         FillConsoleOutputAttribute(handle_cout, info.wAttributes, es_argv[0],
@@ -599,11 +602,61 @@ void ansi_interpret_seq()
         save_pos.X = info.dwCursorPosition.X;
         save_pos.Y = info.dwCursorPosition.Y;
         return;
-    case 'u' :                               // ESC[u Return to saved cursor position
+    case 'u':
+        // ESC[u Return to saved cursor position
         if (es_argc != 0) return;
         SetConsoleCursorPosition(handle_cout, save_pos);
         return;
-    default :
+    case 'r':
+        // ESC[r set scroll region
+        if (es_argc == 0) {
+            // ESC[r == ESC[top;botr
+            scroll_region.Top    = 0;
+            scroll_region.Bottom = info.dwSize.Y - 1;
+        }
+        else if (es_argc == 2) {
+            scroll_region.Top    = es_argv[0] - 1;
+            scroll_region.Bottom = es_argv[1] - 1;
+        }
+        return;
+    case 'S':
+        // ESC[S scroll up
+        if (es_argc != 1) return;
+        rect = scroll_region;
+        rect.Top = es_argv[0];
+        rect.Bottom = info.dwSize.Y - 1;
+        pos.X = 0;
+        pos.Y = 0;
+        char_info.Char.AsciiChar = ' ';
+        char_info.Attributes = info.wAttributes;
+        ScrollConsoleScreenBuffer(handle_cout, &rect, &scroll_region, 
+                                                            pos, &char_info);
+                pos.X = 0;
+        pos.X = 0;
+        pos.Y = scroll_region.Bottom;
+        FillConsoleOutputCharacter(handle_cout, ' ', 
+                        info.dwSize.X*es_argv[0], pos, &written);
+        FillConsoleOutputAttribute(handle_cout, info.wAttributes, 
+                        info.dwSize.X*es_argv[0], pos, &written);
+        return;
+    case 'T':
+        // ESC[T scroll down
+        if (es_argc != 1) return;
+        rect = scroll_region;
+        rect.Top = 0;
+        rect.Bottom = info.dwSize.Y - es_argv[0];
+        pos.X = 0;
+        pos.Y = es_argv[0];
+        char_info.Char.AsciiChar = ' ';
+        char_info.Attributes = info.wAttributes;
+        ScrollConsoleScreenBuffer(handle_cout, &rect, &scroll_region, 
+                                                            pos, &char_info);
+        pos.X = 0;
+        pos.Y = scroll_region.Top;
+        FillConsoleOutputCharacter(handle_cout, ' ', 
+                        info.dwSize.X*es_argv[0], pos, &written);
+        FillConsoleOutputAttribute(handle_cout, info.wAttributes, 
+                        info.dwSize.X*es_argv[0], pos, &written);
         return;
     }
   }
@@ -706,6 +759,11 @@ void ansi_init()
     init_attribute = info.wAttributes; 
     // initialise parser state
     state = 1;
+    // initialise scroll region to full screen
+    scroll_region.Left   = 0;
+    scroll_region.Right  = info.dwSize.X - 1;
+    scroll_region.Top    = 0;
+    scroll_region.Bottom = info.dwSize.Y - 1;
 }
 
 void ansi_close()
@@ -1053,7 +1111,7 @@ int main(int argc, char *argv[])
 
     wchar_t cmd_line[ARG_BUFLEN];
     build_command_line(argc, argv, cmd_line, ARG_BUFLEN);
- 
+
     /* start ansi interpreter */
 
     ansi_init();
