@@ -140,6 +140,13 @@ THE SOFTWARE.
 // define bool, for C < C99
 typedef enum { false, true } bool;
 
+// not defined in MinGW
+int wcscasecmp(wchar_t *a, wchar_t *b)
+{
+    while (*a && *b && towupper(*a++) == towupper(*b++));
+    return (towupper(*a) != towupper(*b));
+}
+
 // ========== Global variables and constants
 
 // handles to standard i/o streams
@@ -842,6 +849,8 @@ int main(int argc, char *argv[])
     handle_cin = GetStdHandle(STD_INPUT_HANDLE);
     handle_cerr = GetStdHandle(STD_ERROR_HANDLE);
 
+    /* build command line */
+    
     // get full program name, exclude extension
     wchar_t module_name[MAX_PATH+1];
     GetModuleFileName(0, module_name, MAX_PATH);
@@ -871,6 +880,12 @@ int main(int argc, char *argv[])
         wcscat(cmd_line, wide_buffer);
     }
 
+    /* start ansi interpreter */
+    
+    ansi_init();
+
+    /* start pipes */
+    
     // spawn child process in suspended mode and create pipes
     PROCESS_INFORMATION pinfo;
     STARTUPINFO sinfo;
@@ -886,17 +901,31 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    // save console input mode to restore at exit
+    long save_mode;
+    GetConsoleMode(handle_cin, &save_mode);
+
     // start the pipe threads and resume child process
-    ansi_init();
     pipes_start_threads();
     ResumeThread(pinfo.hThread);
 
+    /* wait for process */
+
     // wait for child process to exit and close pipes
     WaitForSingleObject(pinfo.hProcess, INFINITE);
+    long exit_code;
+    GetExitCodeProcess(pinfo.hProcess, &exit_code);
+
+    /* close pipes */
+    
     pipes_close();
+    // restore console mode
+    SetConsoleMode(handle_cin, save_mode);
+
+    /* close ansi */
+    
     ansi_close();
-    ULONG exit_code;
-    GetExitCodeProcess(pinfo.hProcess, (ULONG*) &exit_code);
+
     return exit_code;
 }
 
