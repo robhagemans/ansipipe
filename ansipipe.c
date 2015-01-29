@@ -1006,24 +1006,29 @@ void pipes_start_threads()
 // buffer for command-line arguments to child process
 #define ARG_BUFLEN 2048
 
+// create command line for child process
 void build_command_line(int argc, char *argv[], wchar_t *buffer, long buflen)
 {
     // get full program name, exclude extension
     wchar_t module_name[MAX_PATH+1];
     GetModuleFileName(0, module_name, MAX_PATH);
     module_name[MAX_PATH] = 0;
-    module_name[wcslen(module_name)-4] = 0;
-
-    // create command line for child process
+    int module_len = wcslen(module_name);
+    // start with empty string
     buffer[0] = L'\0';
-    int count = wcslen(module_name) + 4;
-    if (count > buflen) {
-        fprintf(stderr, "ERROR: Application name too long.\n");
-        return;
+    int count = 0;
+    // only call X.EXE if we're named X.COM
+    // if we're an EXE the first argument is the child executable, so skip this
+    if (module_len > 4 && wcscasecmp(module_name + module_len - 4, L".exe")) {
+        module_name[module_len - 4] = 0;
+        count += module_len + 1;
+        if (count > buflen) {
+            fprintf(stderr, "ERROR: Application name too long.\n");
+            return;
+        }
+        wcscat(buffer, module_name);
+        wcscat(buffer, L".exe ");
     }
-    wcscat(buffer, module_name);
-    wcscat(buffer, L".exe");
- 
     // write all arguments to child command line
     int i = 0;
     for (i = 1; i < argc; ++i) {
@@ -1033,8 +1038,8 @@ void build_command_line(int argc, char *argv[], wchar_t *buffer, long buflen)
         MultiByteToWideChar(CP_UTF8, 0, argv[i], -1, wide_buffer, length);
         count += length + 1;
         if (count >= buflen) break;
-        wcscat(buffer, L" ");
         wcscat(buffer, wide_buffer);
+        wcscat(buffer, L" ");
     }
 }
 
