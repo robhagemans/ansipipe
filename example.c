@@ -6,7 +6,7 @@ int main()
 {
     ansipipe_init();
     
-    printf("\x1b]2;%s\x07", "ANSI|term demo");
+    printf("\x1b]2;%s\x07", "ANSI|pipe demo");
     // From helloworldcollection.de. Lucida Sans doesn't support Asian scripts, but this all works:
     printf("\n\n\n\x1b[2AHello,\x1b[1A\x1b[91mWorld!\x1b[2B\x1b[0m Здравствуй,\x1b[1A\x1b[92mмир!\x1b[0m\x1b[2B "); 
     printf("Γεια σου \x1b[1A\x1b[94mκόσμε!\x1b[2B\x1b[0m\n");
