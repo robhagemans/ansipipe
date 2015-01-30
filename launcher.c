@@ -43,6 +43,10 @@ The following is a list of modifications of Win32::Console::ANSI
 (RH 2015-01-28) 
 -   Change signature of ParseAndPrint to work with one hDev only
 -   Remove codepage-conversion sequences ('\x1b(')
+(RH 2015-01-30)
+-   Add escape sequences for scrolling, terminal resizing, xterm bright colours
+-   Add ANSI input routine (sends sequences for special keys)
+-   Refactor code to allow multiple parsers (for cerr and cout)
 In other words, I have extracted only the escape sequence parser from the
 original source and then modified that.
 
