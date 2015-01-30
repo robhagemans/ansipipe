@@ -72,7 +72,7 @@ For instance, a Python app that uses `import ansipipe` can be run with:
     launcher python example.py
 
 
-# How it does it
+## How it does it
 
 ANSI|pipe creates named pipes, one for each of `stdin`, `stdout` and `stderr`. 
 It converts Windows keystrokes into a byte stream of UTF-8 and ANSI escape 
