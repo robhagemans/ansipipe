@@ -1067,7 +1067,7 @@ void pipes_cout_thread(void *dummy)
     char buffer[PIPES_BUFLEN];
     long count = 0;
     ConnectNamedPipe(cout_pipe, NULL);
-    while (ReadFile(cout_pipe, buffer, PIPES_BUFLEN, &count, NULL)) {
+    while (ReadFile(cout_pipe, buffer, PIPES_BUFLEN-1, &count, NULL)) {
         buffer[count] = 0;
         ansi_print(buffer);
     }
@@ -1079,7 +1079,7 @@ void pipes_cerr_thread(void *dummy)
     char buffer[PIPES_BUFLEN];
     long count = 0;
     ConnectNamedPipe(cerr_pipe, NULL);
-    while (ReadFile(cerr_pipe, buffer, PIPES_BUFLEN, &count, NULL)) {
+    while (ReadFile(cerr_pipe, buffer, PIPES_BUFLEN-1, &count, NULL)) {
         buffer[count] = 0;
         // no ansi escape sequences for stderr
         utf8_fprint(stderr, buffer);
@@ -1094,7 +1094,7 @@ void pipes_cin_thread(void *dummy)
     long countw = 0;
     ConnectNamedPipe(cin_pipe, NULL);
     for(;;) {
-        if (!utf8_read(buffer, PIPES_BUFLEN, &countr))
+        if (!utf8_read(buffer, PIPES_BUFLEN-1, &countr))
             break;
         if (!WriteFile(cin_pipe, buffer, countr, &countw, NULL))
             break;
@@ -1215,7 +1215,7 @@ int main(int argc, char *argv[])
     /* close ansi */
     
     ansi_close();
-
+    
     return exit_code;
 }
 
