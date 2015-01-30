@@ -148,6 +148,7 @@ int wcscasecmp(wchar_t *a, wchar_t *b)
     return (towupper(*a) != towupper(*b));
 }
 
+
 // handles to standard i/o streams
 HANDLE handle_cout;
 HANDLE handle_cin;
@@ -157,9 +158,6 @@ HANDLE handle_cerr;
 HANDLE cout_pipe;
 HANDLE cin_pipe;
 HANDLE cerr_pipe;
-
-
-
 
 
 // ============================================================================
@@ -213,13 +211,14 @@ int backgroundcolor[16] = {
 // Table to convert the color order of the console in the ANSI order.
 int conversion[16] = {0, 4, 2, 6, 1, 5, 3, 7, 8, 12, 10, 14, 9, 13, 11, 15};
 
+int foreground_default = FOREGROUND_WHITE;
+int background_default = BACKGROUND_BLACK;
 
 // ============================================================================
 // Print Buffer
 // ============================================================================
 
 #define PBUF_SIZE 256
-//#define NULL_PBUF { 0, 0, L"" }
 
 typedef struct {
     HANDLE handle;
@@ -257,9 +256,6 @@ void pbuf_push(PBUF *pbuf, wchar_t c)
 #define MAX_STRARG 1024         // max string arg length
 #define MAX_ARG 16              // max number of args in an escape sequence
 
-#define ESC     '\x1B'          // ESCape character
-#define LF      '\x0A'          // Line Feed
-
 // current escape sequence state:
 // for instance, with \e[33;45;1m we have
 // prefix = '[',
@@ -274,9 +270,6 @@ typedef struct {
     wchar_t args[MAX_STRARG];       // escape sequence string arg; length in argv[1]
 } SEQUENCE;
 
-int foreground_default = FOREGROUND_WHITE;
-int background_default = BACKGROUND_BLACK;
-
 // current attributes
 typedef struct {
     int foreground;
@@ -290,8 +283,6 @@ typedef struct {
     // saved cursor position
     COORD save_pos;
 } TERM;
-
-//#define NULL_TERM {FOREGROUND_WHITE, BACKGROUND_BLACK, false, false, false, false, {0,0,0,0}, {0,0}}
 
 // interpret the last escape sequence scanned by ansi_print()
 void ansi_output_seq(HANDLE handle, TERM *term, SEQUENCE es)
@@ -702,9 +693,10 @@ void ansi_output_seq(HANDLE handle, TERM *term, SEQUENCE es)
 }
 
 
+// ============================================================================
+// Parser
+// ============================================================================
 
-
-// state variables
 typedef struct {
     HANDLE handle;
     SEQUENCE es;
@@ -713,6 +705,7 @@ typedef struct {
     int state;
 } PARSER;
 
+// initialise a new ansi sequence parser
 void parser_init(PARSER *p, HANDLE handle)
 {
     p->handle = handle;
@@ -735,7 +728,6 @@ void parser_init(PARSER *p, HANDLE handle)
     p->es.args[0] = 0;
 }
 
-
 // Parse the string buffer, interpret the escape sequences and print the
 // characters on the console.
 // If the number of arguments es.argc > MAX_ARG, only the MAX_ARG-1 firsts and
@@ -754,11 +746,11 @@ void parser_print(PARSER *p, char *buffer)
     for (i = length, s = wide_buffer; i > 0 && *s; i--, s++) {
         switch (p->state) {
         case 1:
-            if (*s == ESC) p->state = 2;
+            if (*s == L'\x1b') p->state = 2;
             else pbuf_push(&(p->pbuf), p->term.concealed ? ' ' : *s);
             break;
         case 2:
-            if (*s == ESC);       // \e\e...\e == \e
+            if (*s == L'\x1b');       // \e\e...\e == \e
             else if (*s == '[') {
                 pbuf_flush(&(p->pbuf));
                 p->es.prefix = *s;
@@ -845,20 +837,7 @@ void parser_print(PARSER *p, char *buffer)
     pbuf_flush(&(p->pbuf));
 }
 
-
-/*
-void utf8_fprint(FILE *stream, char *buffer)
-{
-    // utf8 sequences could be clipped if buffer is full, doesn't seem to happen
-    // get required buffer length
-    int length = MultiByteToWideChar(CP_UTF8, 0, buffer, -1, NULL, 0);
-    wchar_t wide_buffer[length];
-    // convert UTF-8 -> UTF-16
-    MultiByteToWideChar(CP_UTF8, 0, buffer, -1, wide_buffer, length);
-    fprintf(stream, "%S", wide_buffer);
-    fflush(stream);
-}
-*/
+// retrieve utf-8 and ansi sequences from standard input
 bool ansi_input(char *buffer, long buflen, long *count)
 {
     // event buffer size: 
