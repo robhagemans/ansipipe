@@ -37,6 +37,8 @@ if platform.system() == 'Windows':
     ECHO = 8
     ICRNL = 256
     
+    TCSADRAIN = 1
+    
     termios_state = ICRNL | ECHO
     
     def setraw(fd, dummy=None):
