@@ -67,6 +67,8 @@ Two:
     E:\ANSIpipe> g++ example.cpp -o example.exe
     E:\ANSIpipe> example
     
+![Screenshot of ANSI|pipe in action](/../screenshots/screenshot.png?raw=true)
+
 As the Windows shell gives preference to `.COM` over `.EXE` when globbing an 
 executable, all command-line access will naturally be routed through ANSI|pipe 
 while any GUI access through the Start Menu or the File Manager can use the `.EXE` 
