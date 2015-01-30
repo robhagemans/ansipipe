@@ -628,7 +628,7 @@ void ansi_interpret_seq()
             }
             return;
         case 'S':
-            // ESC[S scroll up
+            // ESC[#S scroll up # lines
             if (es_argc != 1) return;
             rect = scroll_region;
             rect.Top = es_argv[0];
@@ -648,7 +648,7 @@ void ansi_interpret_seq()
                             info.dwSize.X*es_argv[0], pos, &written);
             return;
         case 'T':
-            // ESC[T scroll down
+            // ESC[#T scroll down # lines
             if (es_argc != 1) return;
             rect = scroll_region;
             rect.Top = 0;
@@ -665,6 +665,23 @@ void ansi_interpret_seq()
                             info.dwSize.X*es_argv[0], pos, &written);
             FillConsoleOutputAttribute(handle_cout, info.wAttributes, 
                             info.dwSize.X*es_argv[0], pos, &written);
+            return;
+        case 't':
+            //ESC[8;#;#;t resize terminal to # rows, # cols
+            if (es_argc < 3) return;
+            if (es_argv[0] != 8) return;
+            pos.X = es_argv[2];
+            pos.Y = es_argv[1];
+            rect.Top = 0;
+            rect.Left = 0;
+            rect.Bottom = es_argv[1] - 1;
+            rect.Right = es_argv[2] - 1;
+            SetConsoleScreenBufferSize(handle_cout, pos);
+            SetConsoleWindowInfo(handle_cout, true, &rect);
+            // do it twice, because one call can only make the console bigger 
+            // and the other call can only make it smaller. plus I am lazy.
+            SetConsoleScreenBufferSize(handle_cout, pos);
+            SetConsoleWindowInfo(handle_cout, true, &rect);
             return;
         }
     }
@@ -798,6 +815,7 @@ void ansi_print(char *buffer)
  
 // stored initial console attribute
 long init_attribute;
+COORD init_size;
 
 void ansi_init()
 {
@@ -805,6 +823,7 @@ void ansi_init()
     CONSOLE_SCREEN_BUFFER_INFO info;
     GetConsoleScreenBufferInfo(handle_cout, &info);
     init_attribute = info.wAttributes; 
+    init_size = info.dwSize;
     // initialise parser state
     state = 1;
     // initialise scroll region to full screen
@@ -818,6 +837,8 @@ void ansi_close()
 {
     // restore console attributes
     SetConsoleTextAttribute(handle_cout, init_attribute);
+    // restore screen buffer size
+    SetConsoleScreenBufferSize(handle_cout, init_size);
 }
 
 void utf8_fprint(FILE *stream, char *buffer)
