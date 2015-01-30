@@ -250,7 +250,7 @@ void pbuf_push(PBUF *pbuf, wchar_t c)
 
 
 // ============================================================================
-// Parser
+// ANSI sequences
 // ============================================================================
 
 #define MAX_STRARG 1024         // max string arg length
@@ -285,7 +285,7 @@ typedef struct {
 } TERM;
 
 // interpret the last escape sequence scanned by ansi_print()
-void ansi_output_seq(HANDLE handle, TERM *term, SEQUENCE es)
+void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
 {
     int i;
     int attr;
@@ -692,151 +692,6 @@ void ansi_output_seq(HANDLE handle, TERM *term, SEQUENCE es)
     }
 }
 
-
-// ============================================================================
-// Parser
-// ============================================================================
-
-typedef struct {
-    HANDLE handle;
-    SEQUENCE es;
-    TERM term;
-    PBUF pbuf;
-    int state;
-} PARSER;
-
-// initialise a new ansi sequence parser
-void parser_init(PARSER *p, HANDLE handle)
-{
-    p->handle = handle;
-    p->pbuf.handle = handle;
-    p->state = 1;
-    p->term.foreground = foreground_default;
-    p->term.background = background_default;
-    // initialise scroll region to full screen
-    CONSOLE_SCREEN_BUFFER_INFO info;
-    GetConsoleScreenBufferInfo(handle, &info);
-    p->term.scroll_region.Left   = 0;
-    p->term.scroll_region.Right  = info.dwSize.X - 1;
-    p->term.scroll_region.Top    = 0;
-    p->term.scroll_region.Bottom = info.dwSize.Y - 1;
-    // initialise escape sequence
-    p->es.prefix = 0;
-    p->es.prefix2 = 0;
-    p->es.suffix = 0;
-    p->es.argc = 0;
-    p->es.args[0] = 0;
-}
-
-// Parse the string buffer, interpret the escape sequences and print the
-// characters on the console.
-// If the number of arguments es.argc > MAX_ARG, only the MAX_ARG-1 firsts and
-// the last arguments are processed (no es.argv[] overflow).
-void parser_print(PARSER *p, char *buffer)
-{
-    // get required buffer length
-    int length = MultiByteToWideChar(CP_UTF8, 0, buffer, -1, NULL, 0);
-    wchar_t wide_buffer[length];
-    // convert UTF-8 -> UTF-16
-    // utf8 sequences could be clipped if buffer is full, doesn't seem to happen
-    MultiByteToWideChar(CP_UTF8, 0, buffer, -1, wide_buffer, length);
-    // start parsing
-    int i;
-    wchar_t *s;
-    for (i = length, s = wide_buffer; i > 0 && *s; i--, s++) {
-        switch (p->state) {
-        case 1:
-            if (*s == L'\x1b') p->state = 2;
-            else pbuf_push(&(p->pbuf), p->term.concealed ? ' ' : *s);
-            break;
-        case 2:
-            if (*s == L'\x1b');       // \e\e...\e == \e
-            else if (*s == '[') {
-                pbuf_flush(&(p->pbuf));
-                p->es.prefix = *s;
-                p->es.prefix2 = 0;
-                p->state = 3;
-            }
-            else if (*s == ']') {
-                pbuf_flush(&(p->pbuf));
-                p->es.prefix = *s;
-                p->es.prefix2 = 0;
-                p->es.argc = 0;
-                p->es.argv[0] = 0;
-                p->state = 5;
-            }
-            else p->state = 1;
-            break;
-        case 3:
-            if (isdigit(*s)) {
-                p->es.argc = 0;
-                p->es.argv[0] = *s-'0';
-                p->state = 4;
-            }
-            else if (*s == ';') {
-                p->es.argc = 1;
-                p->es.argv[0] = 0;
-                p->es.argv[p->es.argc] = 0;
-                p->state = 4;
-            }
-            else if (*s == '?') {
-                p->es.prefix2 = *s;
-            }
-            else {
-                p->es.argc = 0;
-                p->es.suffix = *s;
-                ansi_output_seq(p->handle, &(p->term), p->es);
-                p->state = 1;
-            }
-            break;
-        case 4:
-            if (isdigit(*s)) {
-                p->es.argv[p->es.argc] = 10*p->es.argv[p->es.argc]+(*s-'0');
-            }
-            else if (*s == ';') {
-                if (p->es.argc < MAX_ARG-1) p->es.argc++;
-                    p->es.argv[p->es.argc] = 0;
-            }
-            else {
-                if (p->es.argc < MAX_ARG-1) p->es.argc++;
-                p->es.suffix = *s;
-                ansi_output_seq(p->handle, &(p->term), p->es);
-                p->state = 1;
-            }
-            break;
-        case 5:
-            // ESC]%d;%sBEL
-            if (isdigit(*s)) {
-                p->es.argc = 1;
-                p->es.argv[0] = 10*p->es.argv[0]+(*s-'0');
-            }
-            else if (*s == ';') {
-                p->es.argc = 2;
-                p->es.argv[1] = 0;
-                p->state = 6;    
-            }
-            else {
-                p->es.suffix = *s;
-                ansi_output_seq(p->handle, &(p->term), p->es);
-                p->state = 1;
-            }
-            break;
-        case 6:
-            // read string argument
-            if (*s != '\x07' && p->es.argv[1] < MAX_STRARG-1) {
-                p->es.args[p->es.argv[1]++] = *s;
-            }
-            else {
-                p->es.args[p->es.argv[1]] = 0;
-                p->es.suffix = *s;
-                ansi_output_seq(p->handle, &(p->term), p->es);
-                p->state = 1;
-            }
-        }
-    }
-    pbuf_flush(&(p->pbuf));
-}
-
 // retrieve utf-8 and ansi sequences from standard input
 bool ansi_input(char *buffer, long buflen, long *count)
 {
@@ -862,6 +717,7 @@ bool ansi_input(char *buffer, long buflen, long *count)
                     wide_buffer[wcount++] = L'\x35';
                     wide_buffer[wcount++] = L'\x7e';
                     break;
+
                 case VK_NEXT:
                     wide_buffer[wcount++] = L'\x1b';
                     wide_buffer[wcount++] = L'\x5b';
@@ -965,6 +821,7 @@ bool ansi_input(char *buffer, long buflen, long *count)
                     wide_buffer[wcount++] = L'\x30';
                     wide_buffer[wcount++] = L'\x7e';
                     break;
+
                 case VK_F10:
                     wide_buffer[wcount++] = L'\x1b';
                     wide_buffer[wcount++] = L'\x5b';
@@ -1022,6 +879,152 @@ bool ansi_input(char *buffer, long buflen, long *count)
     *count = length-1;
     return true;
 }
+
+
+// ============================================================================
+// Parser
+// ============================================================================
+
+typedef struct {
+    HANDLE handle;
+    SEQUENCE es;
+    TERM term;
+    PBUF pbuf;
+    int state;
+} PARSER;
+
+// initialise a new ansi sequence parser
+void parser_init(PARSER *p, HANDLE handle)
+{
+    p->handle = handle;
+    p->pbuf.handle = handle;
+    p->state = 1;
+    p->term.foreground = foreground_default;
+    p->term.background = background_default;
+    // initialise scroll region to full screen
+    CONSOLE_SCREEN_BUFFER_INFO info;
+    GetConsoleScreenBufferInfo(handle, &info);
+    p->term.scroll_region.Left   = 0;
+    p->term.scroll_region.Right  = info.dwSize.X - 1;
+    p->term.scroll_region.Top    = 0;
+    p->term.scroll_region.Bottom = info.dwSize.Y - 1;
+    // initialise escape sequence
+    p->es.prefix = 0;
+    p->es.prefix2 = 0;
+    p->es.suffix = 0;
+    p->es.argc = 0;
+    p->es.args[0] = 0;
+}
+
+// Parse the string buffer, interpret the escape sequences and print the
+// characters on the console.
+// If the number of arguments es.argc > MAX_ARG, only the MAX_ARG-1 firsts and
+// the last arguments are processed (no es.argv[] overflow).
+void parser_print(PARSER *p, char *buffer)
+{
+    // get required buffer length
+    int length = MultiByteToWideChar(CP_UTF8, 0, buffer, -1, NULL, 0);
+    wchar_t wide_buffer[length];
+    // convert UTF-8 -> UTF-16
+    // utf8 sequences could be clipped if buffer is full, doesn't seem to happen
+    MultiByteToWideChar(CP_UTF8, 0, buffer, -1, wide_buffer, length);
+    // start parsing
+    int i;
+    wchar_t *s;
+    for (i = length, s = wide_buffer; i > 0 && *s; i--, s++) {
+        switch (p->state) {
+        case 1:
+            if (*s == L'\x1b') p->state = 2;
+            else pbuf_push(&(p->pbuf), p->term.concealed ? ' ' : *s);
+            break;
+        case 2:
+            if (*s == L'\x1b');       // \e\e...\e == \e
+            else if (*s == '[') {
+                pbuf_flush(&(p->pbuf));
+                p->es.prefix = *s;
+                p->es.prefix2 = 0;
+                p->state = 3;
+            }
+            else if (*s == ']') {
+                pbuf_flush(&(p->pbuf));
+                p->es.prefix = *s;
+                p->es.prefix2 = 0;
+                p->es.argc = 0;
+                p->es.argv[0] = 0;
+                p->state = 5;
+            }
+            else p->state = 1;
+            break;
+        case 3:
+            if (isdigit(*s)) {
+                p->es.argc = 0;
+                p->es.argv[0] = *s-'0';
+                p->state = 4;
+            }
+            else if (*s == ';') {
+                p->es.argc = 1;
+                p->es.argv[0] = 0;
+                p->es.argv[p->es.argc] = 0;
+                p->state = 4;
+            }
+            else if (*s == '?') {
+                p->es.prefix2 = *s;
+            }
+            else {
+                p->es.argc = 0;
+                p->es.suffix = *s;
+                ansi_output(p->handle, &(p->term), p->es);
+                p->state = 1;
+            }
+            break;
+        case 4:
+            if (isdigit(*s)) {
+                p->es.argv[p->es.argc] = 10*p->es.argv[p->es.argc]+(*s-'0');
+            }
+            else if (*s == ';') {
+                if (p->es.argc < MAX_ARG-1) p->es.argc++;
+                    p->es.argv[p->es.argc] = 0;
+            }
+            else {
+                if (p->es.argc < MAX_ARG-1) p->es.argc++;
+                p->es.suffix = *s;
+                ansi_output(p->handle, &(p->term), p->es);
+                p->state = 1;
+            }
+            break;
+        case 5:
+            // ESC]%d;%sBEL
+            if (isdigit(*s)) {
+                p->es.argc = 1;
+                p->es.argv[0] = 10*p->es.argv[0]+(*s-'0');
+            }
+            else if (*s == ';') {
+                p->es.argc = 2;
+                p->es.argv[1] = 0;
+                p->state = 6;    
+            }
+            else {
+                p->es.suffix = *s;
+                ansi_output(p->handle, &(p->term), p->es);
+                p->state = 1;
+            }
+            break;
+        case 6:
+            // read string argument
+            if (*s != '\x07' && p->es.argv[1] < MAX_STRARG-1) {
+                p->es.args[p->es.argv[1]++] = *s;
+            }
+            else {
+                p->es.args[p->es.argv[1]] = 0;
+                p->es.suffix = *s;
+                ansi_output(p->handle, &(p->term), p->es);
+                p->state = 1;
+            }
+        }
+    }
+    pbuf_flush(&(p->pbuf));
+}
+
 
 
 // ============================================================================
