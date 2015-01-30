@@ -19,7 +19,8 @@ originally for the Unix world, this is an unwelcome distraction. Moreover,
 solving it on an issue-by-issue basis requires digging into Windows API 
 functions that are likely to be unfamiliar.  
 
-## What it does
+
+## What it does and how to use it
 
 ANSI|pipe consists of a small binary that you can distribute with your compiled
 code. It intercepts the standard I/O streams, converting between UTF-8 on the
@@ -29,17 +30,62 @@ to Windows, application code only needs to include one tiny header file and
 call a single initialising function, which re-routes standard I/O to a named
 pipe.  
 
-## How to use it
+It's as simple as:  
 
-Give the ANSI|pipe binary the same name as your application's main .exe 
-binary, but with a .COM extension. As the Windows shell gives preference to .COM 
-over .EXE when globbing an executable, all command-line access will naturally
-be routed through ANSI|pipe while any GUI access through the Start Menu or 
-the File Manager can use the .EXE and avoid a console window.  
+    #include <iostream>
+    #include "ansipipe.hpp"
+    
+    int main() 
+    {
+        ansipipe_init();
+        
+        std::cout << "\x1b]2;ANSI|term demo\x07";
+        // From helloworldcollection.de. Lucida Sans doesn't support Asian scripts, but this all works:
+        std::cout << "\n\n\n\x1b[2AHello,\x1b[1A\x1b[91mWorld!\x1b[2B\x1b[0m Здравствуй,\x1b[1A\x1b[92mмир!\x1b[0m\x1b[2B "; 
+        std::cout << "Γεια σου \x1b[1A\x1b[94mκόσμε!\x1b[2B\x1b[0m\n";
+        std::cout << "Type something: ";
+    
+        std::string input;
+        std::getline(std::cin, input);
+        std::cout << "You typed \x1b[45;1m" << input << "\x1b[0m.\n";
+    
+        return 0;
+    }
+
+Apart from the C++ header, a (GNU-flavoured) C header and Python module are also provided.
+
+There are two ways to deploy it. One:  
+
+    E:\ANSIpipe> gcc launcher.c -o launcher.exe
+    E:\ANSIpipe> g++ example.cpp -o example.exe
+    E:\ANSIpipe> launcher example
+    
+    
+Two:  
+
+    E:\ANSIpipe> gcc launcher.c -o example.com
+    E:\ANSIpipe> g++ example.cpp -o example.exe
+    E:\ANSIpipe> example
+    
+As the Windows shell gives preference to `.COM` over `.EXE` when globbing an 
+executable, all command-line access will naturally be routed through ANSI|pipe 
+while any GUI access through the Start Menu or the File Manager can use the `.EXE` 
+and avoid a console window. If ANSI|pipe sees its name ends with `.EXE`, it will
+take its first argument as the executable to run.   
+
+Either way, any remaining command-line arguments are sent to your app's executable.  
+For instance, a Python app that uses `import ansipipe` can be run with
+
+    launcher python myapp.py
+
+
+I've compiled ANSI|pipe using MinGW GCC. You may need to modify the code for it
+to compile on MS Visual C or LVVM/Clang.
+
 
 ## Acknowledgements
 
-ANSI|pipe merges part of two existing projects:
+ANSI|pipe uses parts of two existing projects:  
 -   [**Win32::Console::ANSI**](http://search.cpan.org/~jlmorel/Win32-Console-ANSI-1.08/lib/Win32/Console/ANSI.pm),
     a Perl extension by **J-L Morel** which implements ANSI escape 
     sequences on the Windows console.  
