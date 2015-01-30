@@ -350,10 +350,14 @@ void ansi_interpret_seq()
                     concealed = false;
                     break;
                 }
-                if ((30 <= es_argv[i]) && (es_argv[i] <= 37)) 
-                    foreground = es_argv[i]-30;
-                if ((40 <= es_argv[i]) && (es_argv[i] <= 47))
-                    background = es_argv[i]-40;
+                if ((100 <= es_argv[i]) && (es_argv[i] <= 107)) 
+                    background = es_argv[i] - 100 + 8;
+                else if ((90 <= es_argv[i]) && (es_argv[i] <= 97)) 
+                    foreground = es_argv[i] - 90 + 8;
+                else if ((40 <= es_argv[i]) && (es_argv[i] <= 47))
+                    background = es_argv[i] - 40;
+                else if ((30 <= es_argv[i]) && (es_argv[i] <= 37)) 
+                    foreground = es_argv[i] - 30;
             }
             if (rvideo) 
                 attr = foregroundcolor[background] | backgroundcolor[foreground];
