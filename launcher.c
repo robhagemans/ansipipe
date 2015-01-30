@@ -160,8 +160,6 @@ HANDLE cerr_pipe;
 
 
 
-#define MAX_TITLE_SIZE 1024     // max title string console size
-#define MAX_ARG 16              // max number of args in an escape sequence
 
 
 // ============================================================================
@@ -261,6 +259,9 @@ void pbuf_push(wchar_t c)
 // Parser
 // ============================================================================
 
+#define MAX_STRARG 1024         // max string arg length
+#define MAX_ARG 16              // max number of args in an escape sequence
+
 #define ESC     '\x1B'          // ESCape character
 #define LF      '\x0A'          // Line Feed
 
@@ -274,6 +275,7 @@ char prefix2;                   // secondary prefix ( '?' );
 char suffix;                    // escape sequence suffix
 int es_argc;                    // escape sequence args count
 int es_argv[MAX_ARG];           // escape sequence args
+wchar_t es_args[MAX_STRARG];       // escape sequence string arg; length in argv[1]
 // saved cursor position
 COORD save_pos = {0, 0};
 // current attributes
@@ -660,12 +662,19 @@ void ansi_interpret_seq()
             return;
         }
     }
+    else if (prefix == ']' && suffix == '\x07') {
+        if (es_argc != 2) return;
+        switch (es_argv[0]) {
+            case 2:
+                // ESC]2;%sBEL: set title
+                SetConsoleTitle(es_args);
+        }            
+    }
 }
 
 
 // Parse the string buffer, interpret the escape sequences and print the
 // characters on the console.
-// The lexer is a four-state automaton.
 // If the number of arguments es_argc > MAX_ARG, only the MAX_ARG-1 firsts and
 // the last arguments are processed (no es_argv[] overflow).
 
@@ -690,11 +699,19 @@ void ansi_print(char *buffer)
         }
         else if (state == 2) {
             if (*s == ESC);       // \e\e...\e == \e
-            else if ((*s == '[') || (*s == '(')) {
+            else if (*s == '[') {
                 pbuf_flush();
                 prefix = *s;
                 prefix2 = 0;
                 state = 3;
+            }
+            else if (*s == ']') {
+                pbuf_flush();
+                prefix = *s;
+                prefix2 = 0;
+                es_argc = 0;
+                es_argv[0] = 0;
+                state = 5;
             }
             else state = 1;
         }
@@ -704,7 +721,7 @@ void ansi_print(char *buffer)
                 es_argv[0] = *s-'0';
                 state = 4;
             }
-            else if ( *s == ';' ) {
+            else if (*s == ';') {
                 es_argc = 1;
                 es_argv[0] = 0;
                 es_argv[es_argc] = 0;
@@ -724,10 +741,10 @@ void ansi_print(char *buffer)
             if (isdigit(*s)) {
                 es_argv[es_argc] = 10*es_argv[es_argc]+(*s-'0');
             }
-            else if ( *s == ';' ) {
+            else if (*s == ';') {
                 if (es_argc < MAX_ARG-1) es_argc++;
                     es_argv[es_argc] = 0;
-                }
+            }
             else {
                 if (es_argc < MAX_ARG-1) es_argc++;
                 suffix = *s;
@@ -735,9 +752,34 @@ void ansi_print(char *buffer)
                 state = 1;
             }
         }
-        else { 
-            // error: unknown automata state (never happens!)
-            exit(1);
+        // ESC]%d;%sBEL
+        else if (state == 5) {
+            if (isdigit(*s)) {
+                es_argc = 1;
+                es_argv[0] = 10*es_argv[0]+(*s-'0');
+            }
+            else if (*s == ';') {
+                es_argc = 2;
+                es_argv[1] = 0;
+                state = 6;    
+            }
+            else {
+                suffix = *s;
+                ansi_interpret_seq();
+                state = 1;
+            }
+        }
+        // read string argument
+        else if (state == 6) {
+            if (*s != '\x07' && es_argv[1] < MAX_STRARG-1) {
+                es_args[es_argv[1]++] = *s;
+            }
+            else {
+                es_args[es_argv[1]] = 0;
+                suffix = *s;
+                ansi_interpret_seq();
+                state = 1;
+            }
         }
     }
     pbuf_flush();
