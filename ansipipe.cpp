@@ -12,7 +12,7 @@
 #include <windows.h>
 #include <stdio.h>
 #include <iostream>
-#include "ansipipe-connect.h"
+#include "ansipipe.h"
 
 bool ansipipe_init(bool create)
 {

@@ -11,7 +11,7 @@
 
 #include <windows.h>
 #include <stdio.h>
-#include "ansipipe-connect.h"
+#include "ansipipe.h"
 
 bool ansipipe_init()
 {

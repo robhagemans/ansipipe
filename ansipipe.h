@@ -1,5 +1,5 @@
-#ifndef ANSIPIPE_CONNECT_H
-#define ANSIPIPE_CONNECT_H
+#ifndef ANSIPIPE_H
+#define ANSIPIPE_H
 typedef enum { false, true } bool;
 bool ansipipe_init();
 #endif
