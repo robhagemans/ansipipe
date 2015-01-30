@@ -249,9 +249,11 @@ void pbuf_push(wchar_t c)
     // skip NUL
     if (!c) return;
     pbuf[pbuf_nchar++] = concealed ? ' ' : c;
-    if (pbuf_nchar >= PBUF_SIZE) {
-        pbuf_flush();
-    }
+    #ifdef ONLCR
+    if (c == L'\r' && !concealed) pbuf[pbuf_nchar++] = L'\n';
+    #endif
+    // keep at least 2 wchars free so we can add CRLF at once if necessary
+    if (pbuf_nchar >= PBUF_SIZE-1) pbuf_flush();
 }
 
 
@@ -692,7 +694,7 @@ void ansi_print(char *buffer)
     // start parsing
     int i;
     wchar_t *s;
-    for(i = length, s = wide_buffer; i > 0; i--, s++) {
+    for (i = length, s = wide_buffer; i > 0 && *s; i--, s++) {
         if (state == 1) {
             if (*s == ESC) state = 2;
             else pbuf_push(*s);
@@ -976,17 +978,23 @@ bool utf8_read(char *buffer, long buflen, long *count)
                     break;
                 default:
                     wide_buffer[wcount++] = events[i].Event.KeyEvent.uChar.UnicodeChar;
-                    // echo
-                    //printf("%c", wide_buffer[wcount]);
+                    #ifdef ECHO
+                    if (wide_buffer[wcount-1] == L'\r')
+                        printf("\n");
+                    else
+                        printf("%lc", wide_buffer[wcount-1]);
+                    #endif
                 }
                 // safety check
                 if (wcount >= buflen / 4) {
                     fprintf(stderr, "ERROR: Input buffer overflow.\n");
                     return false;
                 }
-                // CR -> CRLF
-                //if (wide_buffer[wcount] == L'\r') 
-                //    wide_buffer[wcount++] = L'\n';
+                #ifdef ICRNL
+                // CR -> LF
+                if (wide_buffer[wcount-1] == L'\r') 
+                    wide_buffer[wcount-1] = L'\n';
+                #endif
             }
         }
     }
