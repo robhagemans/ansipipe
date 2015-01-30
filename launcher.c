@@ -149,7 +149,7 @@ typedef enum { false, true } bool;
 int wcscasecmp(wchar_t *a, wchar_t *b)
 {
     while (*a && *b && towupper(*a++) == towupper(*b++));
-    return (towupper(*a) != towupper(*b));
+    return (*a || *b);
 }
 
 
@@ -163,6 +163,14 @@ HANDLE cout_pipe;
 HANDLE cin_pipe;
 HANDLE cerr_pipe;
 
+// termios-style flags
+typedef struct {
+    int echo;
+    int icrnl;
+    int onlcr;
+} FLAGS;
+
+FLAGS flags;
 
 // ============================================================================
 // Colour constants
@@ -245,9 +253,7 @@ void pbuf_push(PBUF *pbuf, wchar_t c)
     // skip NUL
     if (!c) return;
     pbuf->buf[pbuf->nchar++] = c;
-    #ifdef ONLCR
-    if (c == L'\r') pbuf[pbuf->nchar++] = L'\n';
-    #endif
+    if (flags.onlcr && c == L'\r') pbuf->buf[pbuf->nchar++] = L'\n';
     // keep at least 2 wchars free so we can add CRLF at once if necessary
     if (pbuf->nchar >= PBUF_SIZE-1) pbuf_flush(pbuf);
 }
@@ -692,6 +698,28 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
             case 2:
                 // ESC]2;%sBEL: set title
                 SetConsoleTitle(es.args);
+                break;
+            case 255:
+                // ANSIpipe-only: ESC]255;%sBEL: set terminal property
+                // properties supported: ECHO, ICRNL, ONLCR
+                // not thread-safe, so a bit unpredictable 
+                // if you're using stdout and stderr at the same time.
+                if (!wcscasecmp(es.args, L"ECHO"))
+                    flags.echo = true;
+                if (!wcscasecmp(es.args, L"ICRNL"))
+                    flags.icrnl = true;
+                else if (!wcscasecmp(es.args, L"ONLCR"))
+                    flags.onlcr = true;
+                break;
+            case 254:
+                // ANSIpipe-only: ESC]255;%sBEL: unset terminal property
+                if (!wcscasecmp(es.args, L"ECHO"))
+                    flags.echo = false;
+                if (!wcscasecmp(es.args, L"ICRNL"))
+                    flags.icrnl = false;
+                else if (!wcscasecmp(es.args, L"ONLCR"))
+                    flags.onlcr = false;
+                break;
         }            
     }
 }
@@ -849,23 +877,23 @@ bool ansi_input(char *buffer, long buflen, long *count)
                     break;
                 default:
                     wide_buffer[wcount++] = events[i].Event.KeyEvent.uChar.UnicodeChar;
-                    #ifdef ECHO
-                    if (wide_buffer[wcount-1] == L'\r')
-                        printf("\n");
-                    else
-                        printf("%lc", wide_buffer[wcount-1]);
-                    #endif
+                    if (flags.echo) {
+                        if (wide_buffer[wcount-1] == L'\r')
+                            printf("\n");
+                        else
+                            printf("%lc", wide_buffer[wcount-1]);
+                    }
                 }
                 // safety check
                 if (wcount >= buflen / 4) {
                     fprintf(stderr, "ERROR: Input buffer overflow.\n");
                     return false;
                 }
-                #ifdef ICRNL
-                // CR -> LF
-                if (wide_buffer[wcount-1] == L'\r') 
-                    wide_buffer[wcount-1] = L'\n';
-                #endif
+                if (flags.icrnl) {
+                    // CR -> LF
+                    if (wide_buffer[wcount-1] == L'\r') 
+                        wide_buffer[wcount-1] = L'\n';
+                }
             }
         }
     }
@@ -939,7 +967,7 @@ void parser_print(PARSER *p, char *buffer)
         switch (p->state) {
         case 1:
             if (*s == L'\x1b') p->state = 2;
-            else pbuf_push(&(p->pbuf), p->term.concealed ? ' ' : *s);
+            else pbuf_push(&(p->pbuf), p->term.concealed ? ' ' : *s);    
             break;
         case 2:
             if (*s == L'\x1b');       // \e\e...\e == \e
@@ -1185,6 +1213,10 @@ int main(int argc, char *argv[])
     CONSOLE_SCREEN_BUFFER_INFO info;
     GetConsoleScreenBufferInfo(handle_cout, &info);
 
+    flags.echo = true;
+    flags.icrnl = true;
+    flags.onlcr = false;
+    
     /* build command line */
 
     wchar_t cmd_line[ARG_BUFLEN];
