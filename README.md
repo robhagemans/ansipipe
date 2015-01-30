@@ -64,6 +64,11 @@ And this is what it looks like:
 
 ![Screenshot of ANSI|pipe in action](/../screenshots/screenshot.png?raw=true)
 
+Either way, any remaining command-line arguments are sent to your app's executable.  
+For instance, a Python app that uses `import ansipipe` can be run with:
+
+    launcher python example.py
+
 
 # How it does it
 
@@ -79,12 +84,6 @@ when globbing an executable, so that all command-line access will naturally be r
 through ANSI|pipe. Meanwhile, any GUI access through the Start Menu or the File Manager 
 can use the `.EXE` and avoid a console window. If ANSI|pipe sees its name ends 
 in `.EXE`, it will take its first argument as the executable to run.   
-
-Either way, any remaining command-line arguments are sent to your app's executable.  
-For instance, a Python app that uses `import ansipipe` can be run with:
-
-    launcher python myapp.py
-
 
 I've compiled ANSI|pipe using MinGW GCC. You may need to modify the code for it
 to compile on MS Visual C or LVVM/Clang. 
@@ -112,11 +111,11 @@ me know.
 
 ## Licence
      
-ANSI|pipe is free software, released under the GNU GPL 
+ANSI|pipe is free software. The launcher is released under the GNU GPL 
 (version [2](http://www.gnu.org/licenses/gpl-2.0.html) 
 or [3](http://www.gnu.org/licenses/gpl-3.0.html)) and Perl's 
 [Artistic License](http://dev.perl.org/licenses/artistic.html).  
-The linkable header files are released under the [MIT license](http://opensource.org/licenses/MIT).
+The linkable header files and the examples are released under the [MIT license](http://opensource.org/licenses/MIT).
     
     
 
