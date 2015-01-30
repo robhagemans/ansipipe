@@ -74,14 +74,14 @@ input from the `stdout` and `stderr`, interprets and the ANSI sequences and
 executes them on the Windows API, converts the text from UTF-8 to UTF-16 and 
 prints it on the console.
 
-As for the launcher, the Windows shell gives preference to `.COM` over `.EXE` 
-when globbing an executable, all command-line access will naturally be routed 
-through ANSI|pipe while any GUI access through the Start Menu or the File Manager 
+As for the launcher: the Windows shell gives preference to `.COM` over `.EXE` 
+when globbing an executable, so that all command-line access will naturally be routed 
+through ANSI|pipe. Meanwhile, any GUI access through the Start Menu or the File Manager 
 can use the `.EXE` and avoid a console window. If ANSI|pipe sees its name ends 
 in `.EXE`, it will take its first argument as the executable to run.   
 
 Either way, any remaining command-line arguments are sent to your app's executable.  
-For instance, a Python app that uses `import ansipipe` can be run with
+For instance, a Python app that uses `import ansipipe` can be run with:
 
     launcher python myapp.py
 
@@ -115,8 +115,8 @@ me know.
 ANSI|pipe is free software, released under the GNU GPL 
 (version [2](http://www.gnu.org/licenses/gpl-2.0.html) 
 or [3](http://www.gnu.org/licenses/gpl-3.0.html)) and Perl's 
-[Artistic License](http://dev.perl.org/licenses/artistic.html).
-     
+[Artistic License](http://dev.perl.org/licenses/artistic.html).  
+The linkable header files are released under the [MIT license](http://opensource.org/licenses/MIT).
     
     
 
