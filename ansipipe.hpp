@@ -1,5 +1,5 @@
 /*
- * ANSI|pipe C++ connection module
+ * ANSI|pipe C++ connection header
  * Redirect standard I/O through ANSI|pipe executable
  * to enable UTF-8, ANSI escape sequences and dual mode CLI/GUI executables
  * when packaging Python applications to a Windows executable.
@@ -9,12 +9,14 @@
  * This module is released under the terms of the MIT license.
 */
 
-#include <windows.h>
-#include <stdio.h>
-#include <iostream>
-#include "ansipipe.h"
+#ifndef ANSIPIPE_H
+#define ANSIPIPE_H
 
-bool ansipipe_init(bool create)
+#include <windows.h>
+#include <cstdio>
+#include <iostream>
+
+bool ansipipe_init()
 {
       // construct named pipe names
       char name_out[256];
@@ -30,6 +32,14 @@ bool ansipipe_init(bool create)
       rc = rc && freopen(name_in, "r", stdin) != NULL;
       rc = rc && freopen(name_err, "a", stderr) != NULL;
 
+      // set line buffering rather than full buffering on stdout
+      // as is default when not piped. 0 == success.
+      rc = rc && !setvbuf(stdout, NULL, _IOLBF, 1024);
+
+      // sync with iostreams
       if (rc) ios::sync_with_stdio();
       return rc;
 }
+
+#endif
+
