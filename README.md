@@ -1,23 +1,25 @@
 ANSI|pipe
 ========
 
-ANSI|pipe is a small utility that addresses three issues I encountered when
+**ANSI|pipe** is a small utility that addresses three issues I encountered when
 porting Unix console applications to Windows:  
 
 1.  Windows executables must be compiled as either a 'console' or a 'GUI'
-    application. GUI applications either have an ugly console window pop up or 
-    do not have access to the console even if started from the command line.  
+    application. Thus, windowed applications either have an ugly console window 
+    pop up or do not have access to the console even if started from the command 
+    line.  
 2.  The Windows command line does not recognise ANSI escape sequences. Any code
-    that relies on escape sequences to prettify the console interface needs to 
-    be rewritten using OS-specific toolkits.  
-3.  While under modern Unix, it is a safe bet that the console will understand 
-    UTF-8, in the Windows world UTF-16 is dominant. Even worse, the standard 
+    that relies on escape sequences to prettify the console interface would need
+    to be rewritten using OS-specific toolkits.  
+3.  Under modern Unix, it is a safe bet that the console will understand 
+    UTF-8, but in the Windows world UTF-16 is dominant. Even worse, the standard 
     Windows console still uses legacy codepages rather than Unicode by default.  
     
 If your goal is just to maintain a Windows port of a utility you've written
-originally for the Unix world, this is an unwelcome distraction. Moreover, 
-solving it on an issue-by-issue basis requires digging into Windows API 
-functions that are likely to be unfamiliar.  
+originally for the Unix world, diiging into the Windows API is an unwelcome 
+distraction.  
+
+**ANSI|pipe** solves all three issues in one go.
 
 
 ## How to use it
@@ -80,10 +82,12 @@ executes them on the Windows API, converts the text from UTF-8 to UTF-16 and
 prints it on the console.
 
 As for the launcher: the Windows shell gives preference to `.COM` over `.EXE` 
-when globbing an executable, so that all command-line access will naturally be routed 
-through ANSI|pipe. Meanwhile, any GUI access through the Start Menu or the File Manager 
-can use the `.EXE` and avoid a console window. If ANSI|pipe sees its name ends 
-in `.EXE`, it will take its first argument as the executable to run.   
+when globbing an executable, so that all command-line access to `MYAPP` will 
+naturally be routed through ANSI|pipe if you've named the launcher `MYAPP.COM`. 
+Meanwhile, any GUI access through the Start Menu or the File Manager 
+can use `MYAPP.EXE` and avoid a console window. If ANSI|pipe sees its name ends 
+in `.EXE`, it will take as its first argument the executable to run; if its name
+end in `.COM` it will look for the same name with an `.EXE` extension.   
 
 I've compiled ANSI|pipe using MinGW GCC. You may need to modify the code for it
 to compile on MS Visual C or LVVM/Clang. 
@@ -114,7 +118,7 @@ me know.
 ANSI|pipe is free software. The launcher is released under the GNU GPL 
 (version [2](http://www.gnu.org/licenses/gpl-2.0.html) 
 or [3](http://www.gnu.org/licenses/gpl-3.0.html)) and Perl's 
-[Artistic License](http://dev.perl.org/licenses/artistic.html).  
+[Artistic License](http://dev.perl.org/licenses/artistic.html).
 The linkable header files and the examples are released under the [MIT license](http://opensource.org/licenses/MIT).
     
     
