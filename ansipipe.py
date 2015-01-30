@@ -23,13 +23,11 @@ if platform.system() == 'Windows':
 
     # attach named pipes to stdin/stdout/stderr
     try:
-        sys.stdout = open(name_out, 'wb')
-        sys.stdin = open(name_in, 'rb')
-        sys.stderr = open(name_err, 'wb')
+        sys.stdout = open(name_out, 'wb', 0)
+        sys.stdin = open(name_in, 'rb', 0)
+        sys.stderr = open(name_err, 'wb', 0)
     except EnvironmentError:
         sys.stdout = sys.__stdout__
         sys.stdin = sys.__stdin__
         sys.stderr = sys.__stderr__
     
-
-
