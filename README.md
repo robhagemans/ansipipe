@@ -1,25 +1,26 @@
 ANSI|pipe
 ========
 
-**ANSI|pipe** is a small utility that addresses three issues I encountered when
-porting Unix console applications to Windows:  
+**ANSI|pipe** is a small utility that provides no-hassle support for ANSI 
+escape sequences and UTF-8 on Windows. It addresses three issues I encountered 
+when porting Unix console applications to Windows:  
 
 1.  Windows executables must be compiled as either a 'console' or a 'GUI'
     application. Thus, windowed applications either have an ugly console window 
-    pop up or do not have access to the console even if started from the command 
-    line.  
+    pop up or do not have access to the console at all — even if started from 
+    the command line.  
 2.  The Windows command line does not recognise ANSI escape sequences. Any code
     that relies on escape sequences to prettify the console interface would need
     to be rewritten using OS-specific toolkits.  
-3.  Under modern Unix, it is a safe bet that the console will understand 
+3.  Under modern Unix it is a safe bet that the console will understand 
     UTF-8, but in the Windows world UTF-16 is dominant. Even worse, the standard 
     Windows console still uses legacy codepages rather than Unicode by default.  
     
 If your goal is just to maintain a Windows port of a utility you've written
-originally for the Unix world, diiging into the Windows API is an unwelcome 
+originally for the Unix world, digging into the Windows API is an unwelcome 
 distraction.  
 
-**ANSI|pipe** solves all three issues in one go.
+**ANSI|pipe** is a less-than-50KiB executable that solves all three issues in one go.
 
 
 ## How to use it
@@ -33,10 +34,10 @@ It's as simple as:
     {
         ansipipe_init();
         
-        std::cout << "\x1b]2;ANSI|pipe demo\x07";
-        // From helloworldcollection.de. Lucida Sans doesn't support Asian scripts, but this all works:
-        std::cout << "\n\n\n\x1b[2AHello,\x1b[1A\x1b[91mWorld!\x1b[2B\x1b[0m Здравствуй,\x1b[1A\x1b[92mмир!\x1b[0m\x1b[2B "; 
-        std::cout << "Γεια σου \x1b[1A\x1b[94mκόσμε!\x1b[2B\x1b[0m\n";
+        std::cout << "\x1b]2;ANSI|pipe demo\x07"
+            << "\n\n\n\x1b[2AHello,\x1b[1A\x1b[91m World!\x1b[2B\x1b[0m "
+            << "Здравствуй,\x1b[1A\x1b[92m мир!\x1b[0m\x1b[2B "
+            << "Γεια σου\x1b[1A\x1b[94m κόσμε!\x1b[2B\x1b[0m\n";
         std::cout << "Type something: ";
     
         std::string input;
@@ -46,8 +47,8 @@ It's as simple as:
         return 0;
     }
 
-Apart from the C++ header, a (GNU-flavoured) C header and Python module are also provided. 
-The header files are MIT-licensed, so there's no licence worries when linking them to your project.
+The C header is self-contained and MIT-licensed, so there's no licence worries 
+when linking it to your project. Apart from the C header, a Python module is also provided. 
 
 There are two ways to deploy it. One way:  
 
@@ -62,19 +63,59 @@ The other way:
     E:\ANSIpipe> g++ example.cpp -o example.exe
     E:\ANSIpipe> example
 
+Either way, any remaining command-line arguments are sent to your app's executable.  
+A Python app that uses `import ansipipe` can be run with:
+
+    launcher python example.py
+
 And this is what it looks like:
 
 ![Screenshot of ANSI|pipe in action](/../screenshots/screenshot.png?raw=true)
 
-Either way, any remaining command-line arguments are sent to your app's executable.  
-For instance, a Python app that uses `import ansipipe` can be run with:
+Be sure to enable a Unicode-aware terminal font, such as **Lucida Sans Mono** 
+which is available on Windows by default. (_Unfortunately it has no support 
+for East or South Asian scripts. A good free monospace font with support for 
+many Western and East Asian scripts is **WenQuanYi Zen Hei Mono**_.)
 
-    launcher python example.py
+## Single-binary mode
+
+If you're creating a pure console application, issue (1) is not a concern. You 
+simply want no-hassle support for ANSI escape sequences and UTF-8 on Windows.
+In this case, if your app is written in C or C++, you can link ANSI|pipe into 
+your binary and it all works automatically. It's just as easy:
+
+    #include <stdio.h>
+    #include <string.h>
+    #include "ansipipe.h"
+    
+    int main(int argc, char *argv[]) 
+    {
+        ANSIPIPE_LAUNCH(argc, argv);
+    
+        printf("\x1b]2;%s\x07", "ANSI|pipe demo");
+        printf("\n\n\n\x1b[2AHello,\x1b[1A\x1b[91m World!\x1b[2B\x1b[0m ");
+        printf("Здравствуй,\x1b[1A\x1b[92m мир!\x1b[0m\x1b[2B "); 
+        printf("Γεια σου\x1b[1A\x1b[94m κόσμε!\x1b[2B\x1b[0m\n");
+        printf("Type something: ");
+    
+        char inbuf[1024];
+        fgets(inbuf, sizeof(inbuf), stdin);
+        if (strlen(inbuf) > 0) inbuf[strlen(inbuf)-1] = 0;
+        
+        printf("You typed \x1b[45;1m%s\x1b[0m.\n", inbuf);
+    
+        return 0;
+    }
+
+Compile and run:
+
+    E:\ANSIpipe> gcc example-single.c launcher.c -o example-single.exe -D ANSIPIPE_SINGLE
+    E:\ANSIpipe> example-single
 
 
 ## How it does it
 
-ANSI|pipe creates named pipes, one for each of `stdin`, `stdout` and `stderr`. 
+ANSI|pipe creates a named pipe for each of `stdin`, `stdout` and `stderr`. 
 It converts Windows keystrokes into a byte stream of UTF-8 and ANSI escape 
 sequences, and sends this into the `stdin` pipe. At the same time, it takes the
 input from the `stdout` and `stderr`, interprets and the ANSI sequences and
@@ -115,7 +156,7 @@ me know.
 
 ## Licence
      
-ANSI|pipe is free software. The launcher is released under the GNU GPL 
+**ANSI|pipe** is free software. The launcher is released under the GNU GPL 
 (version [2](http://www.gnu.org/licenses/gpl-2.0.html) 
 or [3](http://www.gnu.org/licenses/gpl-3.0.html)) and Perl's 
 [Artistic License](http://dev.perl.org/licenses/artistic.html).
