@@ -2,6 +2,14 @@
 #include <string.h>
 #include "ansipipe.h"
 
+/*
+ * This source demonstrates how to use ANSI|pipe in a console-based C project.
+ * Under Windows, if the binary is run through the ANSI|pipe launcher, UTF-8 
+ * and ANSI escape sequences will shown correctly; if the binary is run on its 
+ * own, ANSI and UTF-8 will not be parsed.
+ * You can compile and run this source on Unix without any changes.
+ */
+
 int main() 
 {
     if (ansipipe_init() != 0)

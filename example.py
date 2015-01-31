@@ -1,6 +1,15 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import ansipipe
 
+"""
+This script demonstrates how to use ANSI|pipe in a console-based Python project.
+Under Windows, if the script is run through the ANSI|pipe launcher, UTF-8 
+and ANSI escape sequences will shown correctly; if the script is run on its 
+own, ANSI and UTF-8 will not be parsed.
+You can run this script on Unix without any changes.
+"""
+
+import ansipipe
 if not ansipipe.ok:
     print "Not connected to ANSI|pipe. Output will be gibberish.";
 
