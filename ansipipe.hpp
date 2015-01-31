@@ -20,6 +20,7 @@
 
 #define NAME_LEN 256
 
+// initilise ansipipe i/o streams. true is success
 bool ansipipe_init()
 {
     // construct named pipe names
@@ -64,7 +65,10 @@ bool ansipipe_init()
 
 #else
 
-bool ansipipe_init() {};
+bool ansipipe_init() 
+{
+    return true;
+};
 
 #endif
 #endif

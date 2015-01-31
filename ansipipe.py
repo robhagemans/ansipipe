@@ -26,11 +26,13 @@ if platform.system() == 'Windows':
         sys.stdout = open(name_out, 'wb', 0)
         sys.stdin = open(name_in, 'rb', 0)
         sys.stderr = open(name_err, 'wb', 0)
+        ok = True;
     except EnvironmentError:
         sys.stdout = sys.__stdout__
         sys.stdin = sys.__stdin__
         sys.stderr = sys.__stderr__
-    
+        ok = False;
+        
     # minimal replacements for tty.setraw() and termios.tcsa
     # using ansipipe-only escape sequences
     ONLCR = 4
@@ -61,4 +63,6 @@ if platform.system() == 'Windows':
         else:
             return 0
             
+else:
+    ok = True;
     

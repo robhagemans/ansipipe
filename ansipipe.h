@@ -20,6 +20,7 @@
 
 #define NAME_LEN 256
 
+// initialise ansipipe i/o streams. 0 is success.
 int ansipipe_init()
 {
     // construct named pipe names
@@ -53,12 +54,15 @@ int ansipipe_init()
         _dup2(old_in, _fileno(stdin));        
         _dup2(old_err, _fileno(stderr));        
     }
-    return rc;
+    return !rc;
 }
 
 #else
 
-int ansipipe_init() {};
+int ansipipe_init() 
+{
+    return 0;
+};
 
 #endif
 #endif

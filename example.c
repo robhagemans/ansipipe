@@ -4,7 +4,8 @@
 
 int main() 
 {
-    ansipipe_init();
+    if (ansipipe_init() != 0)
+        printf("Not connected to ANSI|pipe. Output will be gibberish.\n");
     
     printf("\x1b]2;%s\x07", "ANSI|pipe demo");
     // From helloworldcollection.de. Lucida Sans doesn't support Asian scripts, but this all works:
