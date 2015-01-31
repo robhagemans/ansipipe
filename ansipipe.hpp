@@ -15,26 +15,50 @@
 #ifdef _WIN32
 #include <windows.h>
 #include <stdio.h>
+#include <io.h>
 #include <iostream>
+
+#define NAME_LEN 256
 
 bool ansipipe_init()
 {
     // construct named pipe names
-    char name_out[256];
-    char name_in[256];
-    char name_err[256];
+    char name_out[NAME_LEN];
+    char name_in[NAME_LEN];
+    char name_err[NAME_LEN];
     sprintf(name_out, "\\\\.\\pipe\\%dcout", GetCurrentProcessId());
     sprintf(name_in, "\\\\.\\pipe\\%dcin", GetCurrentProcessId());
     sprintf(name_err, "\\\\.\\pipe\\%dcerr", GetCurrentProcessId());
 
-    // attach named pipes to stdin/stdout/stderr
-    bool rc = false;
-    rc = freopen(name_out, "a", stdout) != NULL;
-    rc = rc && freopen(name_in, "r", stdin) != NULL;
-    rc = rc && freopen(name_err, "a", stderr) != NULL;
+    // keep a copy of the existing stdio streams in case we fail
+    int old_out = _dup(_fileno(stdout));
+    int old_in = _dup(_fileno(stdin));
+    int old_err = _dup(_fileno(stderr));
 
+    // try to attach named pipes to stdin/stdout/stderr
+    int rc = 0;
+    rc = (int) freopen(name_out, "a", stdout);
+    rc = rc && (int) freopen(name_in, "r", stdin);
+    rc = rc && (int) freopen(name_err, "a", stderr);
+
+    if (rc) {
+        // unix app would expect line buffering _IOLBF but WIN32 doesn't have it
+        setvbuf(stdout, NULL, _IONBF, 0);
+        // stderr *should* be unbuffered, but we can't count on it
+        setvbuf(stderr, NULL, _IONBF, 0);
+    }
+    else {
+        // failed; restore original stdio
+        _dup2(old_out, _fileno(stdout));        
+        _dup2(old_in, _fileno(stdin));        
+        _dup2(old_err, _fileno(stderr));        
+        // iostreams hang on MinGW C++ if we don't printf at least 2 chars here
+        printf("\b\b");
+    }
+    
     // sync with iostreams
-    if (rc) std::ios::sync_with_stdio();
+    //std::ios::sync_with_stdio();
+
     return rc;
 }
 
