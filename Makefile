@@ -1,11 +1,17 @@
-all: launcher examples
+all: launcher example-c example-cpp example-single example-gui
 
-launcher:
-	gcc launcher.c -o launcher.exe
+launcher: launcher.c
+	gcc launcher.c -o launcher
 
-examples:
-	gcc example.c -o example-c.exe
-	g++ example.cpp -o example-cpp.exe
-	g++ example-gui.cpp -o example-gui.exe -fpermissive -mwindows
-    
+example-c: example.c ansipipe.h
+	gcc example.c -o example-c
+
+example-cpp: example.cpp ansipipe.hpp
+	g++ example.cpp -o example-cpp
+
+example-single: example-single.c launcher.c ansipipe.h
+	gcc example-single.c launcher.c -o example-single -D ANSIPIPE_SINGLE    
+
+example-gui: example-gui.cpp ansipipe.hpp
+	g++ example-gui.cpp -o example-gui -fpermissive -mwindows
 
