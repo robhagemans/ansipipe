@@ -134,6 +134,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
+#ifdef _WIN32
+
 #define UNICODE
 #define _WIN32_WINNT 0x0500
 #include <windows.h>
@@ -1175,6 +1177,10 @@ void build_command_line(int argc, char *argv[], wchar_t *buffer, long buflen)
     // start with empty string
     buffer[0] = L'\0';
     int count = 0;
+    #ifdef ANSIPIPE_SINGLE
+    wcscat(buffer, module_name);
+    count += module_len;
+    #else
     // only call X.EXE if we're named X.COM
     // if we're an EXE the first argument is the child executable, so skip this
     if (module_len > 4 && wcscasecmp(module_name + module_len - 4, L".exe")) {
@@ -1187,6 +1193,7 @@ void build_command_line(int argc, char *argv[], wchar_t *buffer, long buflen)
         wcscat(buffer, module_name);
         wcscat(buffer, L".exe ");
     }
+    #endif
     // write all arguments to child command line
     int i = 0;
     for (i = 1; i < argc; ++i) {
@@ -1199,14 +1206,26 @@ void build_command_line(int argc, char *argv[], wchar_t *buffer, long buflen)
         wcscat(buffer, wide_buffer);
         wcscat(buffer, L" ");
     }
+    #ifdef ANSIPIPE_SINGLE
+    wcscat(buffer, L" ANSIPIPE_SELF_CALL");
+    count += wcslen(L" ANSIPIPE_SELF_CALL");
+    #endif
 }
 
-int main(int argc, char *argv[])
+
+
+int ansipipe_launcher(int argc, char *argv[], long *exit_code)
 {
+    #ifdef ANSIPIPE_SINGLE
+    if (!strcmp(argv[argc-1], "ANSIPIPE_SELF_CALL"))
+        return 0;
+    #endif    
+    
+    /* retrieve stdio handles */
+
     handle_cout = GetStdHandle(STD_OUTPUT_HANDLE);
     handle_cin = GetStdHandle(STD_INPUT_HANDLE);
     handle_cerr = GetStdHandle(STD_ERROR_HANDLE);
-
 
     /* save initial console attributes */
 
@@ -1231,7 +1250,7 @@ int main(int argc, char *argv[])
     sinfo.cb = sizeof(STARTUPINFO);
     if (!CreateProcess(NULL, cmd_line, NULL, NULL, FALSE, 
                        CREATE_SUSPENDED, NULL, NULL, &sinfo, &pinfo)) {
-        fprintf(stderr, "ERROR: Could not create process.\n");
+        fprintf(stderr, "ERROR: Could not create process %S.", cmd_line);
         return 1;
     }
     if (!pipes_create(pinfo.dwProcessId)) {
@@ -1255,8 +1274,7 @@ int main(int argc, char *argv[])
 
     // wait for child process to exit and close pipes
     WaitForSingleObject(pinfo.hProcess, INFINITE);
-    long exit_code;
-    GetExitCodeProcess(pinfo.hProcess, &exit_code);
+    GetExitCodeProcess(pinfo.hProcess, exit_code);
 
     /* close pipes */
     
@@ -1270,7 +1288,28 @@ int main(int argc, char *argv[])
     SetConsoleTextAttribute(handle_cout, info.wAttributes);
     // restore screen buffer size
     SetConsoleScreenBufferSize(handle_cout, info.dwSize);
-    
+
+    // signal to caller that we've run as launcher
+    return 1;
+}
+
+#ifndef ANSIPIPE_SINGLE
+int main(int argc, char *argv[]) 
+{
+    long exit_code = 0;
+    ansipipe_launcher(argc, argv, &exit_code);
     return exit_code;
 }
+#endif
+
+#else
+
+#ifndef ANSIPIPE_SINGLE
+int main()
+{
+    return 0;
+}
+#endif
+
+#endif
 

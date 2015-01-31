@@ -57,12 +57,33 @@ int ansipipe_init()
     return !rc;
 }
 
+/* definitions for single-binary mode */
+
+// defined in launcher.c, but only needed for single-binary compile
+int ansipipe_launcher(int argc, char *argv[], long *exit_code);
+
+#define ANSIPIPE_LAUNCH(argc, argv) \
+    do { \
+        long exit_code = 0;\
+        if (ansipipe_launcher((argc), (argv), &exit_code)) \
+            return exit_code; \
+        else \
+            --argc; \
+    } while(0)
+
 #else
 
 int ansipipe_init() 
 {
     return 0;
 };
+
+int ansipipe_launcher(int argc, char *argv[], long *exit_code)
+{
+    return 0;
+};
+
+#define ANSIPIPE_LAUNCH(argc, argv)
 
 #endif
 #endif
