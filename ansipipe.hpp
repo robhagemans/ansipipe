@@ -19,23 +19,23 @@
 
 bool ansipipe_init()
 {
-      // construct named pipe names
-      char name_out[256];
-      char name_in[256];
-      char name_err[256];
-      sprintf(name_out, "\\\\.\\pipe\\%dcout", GetCurrentProcessId());
-      sprintf(name_in, "\\\\.\\pipe\\%dcin", GetCurrentProcessId());
-      sprintf(name_err, "\\\\.\\pipe\\%dcerr", GetCurrentProcessId());
+    // construct named pipe names
+    char name_out[256];
+    char name_in[256];
+    char name_err[256];
+    sprintf(name_out, "\\\\.\\pipe\\%dcout", GetCurrentProcessId());
+    sprintf(name_in, "\\\\.\\pipe\\%dcin", GetCurrentProcessId());
+    sprintf(name_err, "\\\\.\\pipe\\%dcerr", GetCurrentProcessId());
 
-      // attach named pipes to stdin/stdout/stderr
-      bool rc = false;
-      rc = freopen(name_out, "a", stdout) != NULL;
-      rc = rc && freopen(name_in, "r", stdin) != NULL;
-      rc = rc && freopen(name_err, "a", stderr) != NULL;
+    // attach named pipes to stdin/stdout/stderr
+    bool rc = false;
+    rc = freopen(name_out, "a", stdout) != NULL;
+    rc = rc && freopen(name_in, "r", stdin) != NULL;
+    rc = rc && freopen(name_err, "a", stderr) != NULL;
 
-      // sync with iostreams
-      if (rc) std::ios::sync_with_stdio();
-      return rc;
+    // sync with iostreams
+    if (rc) std::ios::sync_with_stdio();
+    return rc;
 }
 
 #else

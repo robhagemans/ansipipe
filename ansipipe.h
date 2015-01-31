@@ -19,26 +19,26 @@
 
 int ansipipe_init()
 {
-      // construct named pipe names
-      char name_out[256];
-      char name_in[256];
-      char name_err[256];
-      sprintf(name_out, "\\\\.\\pipe\\%dcout", GetCurrentProcessId());
-      sprintf(name_in, "\\\\.\\pipe\\%dcin", GetCurrentProcessId());
-      sprintf(name_err, "\\\\.\\pipe\\%dcerr", GetCurrentProcessId());
+    // construct named pipe names
+    char name_out[256];
+    char name_in[256];
+    char name_err[256];
+    sprintf(name_out, "\\\\.\\pipe\\%dcout", GetCurrentProcessId());
+    sprintf(name_in, "\\\\.\\pipe\\%dcin", GetCurrentProcessId());
+    sprintf(name_err, "\\\\.\\pipe\\%dcerr", GetCurrentProcessId());
 
-      // attach named pipes to stdin/stdout/stderr
-      int rc = 0;
-      rc = freopen(name_out, "a", stdout) != NULL;
-      rc = rc && freopen(name_in, "r", stdin) != NULL;
-      rc = rc && freopen(name_err, "a", stderr) != NULL;
-      
-      // unix app would expect line buffering _IOLBF but WIN32 doesn't have it
-      rc = rc && !setvbuf(stdout, NULL, _IONBF, 0);
-      // stderr *should* be unbuffered, but we can't count on it
-      rc = rc && !setvbuf(stderr, NULL, _IONBF, 0);
+    // attach named pipes to stdin/stdout/stderr
+    int rc = 0;
+    rc = freopen(name_out, "a", stdout) != NULL;
+    rc = rc && freopen(name_in, "r", stdin) != NULL;
+    rc = rc && freopen(name_err, "a", stderr) != NULL;
 
-      return rc;
+    // unix app would expect line buffering _IOLBF but WIN32 doesn't have it
+    rc = rc && !setvbuf(stdout, NULL, _IONBF, 0);
+    // stderr *should* be unbuffered, but we can't count on it
+    rc = rc && !setvbuf(stderr, NULL, _IONBF, 0);
+
+    return rc;
 }
 
 #else
