@@ -1,5 +1,5 @@
 /*
- * ANSI|pipe C connection header
+ * ANSI|pipe C/C++ connection header
  * Redirect standard I/O through ANSI|pipe executable
  * to enable UTF-8, ANSI escape sequences and dual mode CLI/GUI executables
  * when compiling command-line applications for Windows
@@ -12,7 +12,14 @@
 #ifndef ANSIPIPE_H
 #define ANSIPIPE_H
 
-#ifdef _WIN32
+#ifndef _WIN32
+
+// dummy definitions for non-Windows platforms 
+int ansipipe_init() { return 0; };
+int ansipipe_launcher(int argc, char *argv[], long *exit_code) { return 0; };
+#define ANSIPIPE_LAUNCH(argc, argv)
+
+#else
 
 #include <windows.h>
 #include <stdio.h>
@@ -53,13 +60,17 @@ int ansipipe_init()
         _dup2(old_out, _fileno(stdout));        
         _dup2(old_in, _fileno(stdin));        
         _dup2(old_err, _fileno(stderr));        
+#ifdef __cplusplus
+        // iostreams hang on MinGW C++ if we don't printf at least 2 chars here
+        printf("\b\b");
+#endif
     }
     return !rc;
 }
 
-/* definitions for single-binary mode */
+/* definitions for single-binary mode only */
 
-// defined in launcher.c, but only needed for single-binary compile
+// defined in launcher.c
 int ansipipe_launcher(int argc, char *argv[], long *exit_code);
 
 #define ANSIPIPE_LAUNCH(argc, argv) \
@@ -69,21 +80,10 @@ int ansipipe_launcher(int argc, char *argv[], long *exit_code);
             return exit_code; \
         else \
             --argc; \
+        if (ansipipe_init() != 0) \
+            printf("ERROR: Failed to initialise ANSI|pipe."); \
     } while(0)
 
-#else
-
-int ansipipe_init() 
-{
-    return 0;
-};
-
-int ansipipe_launcher(int argc, char *argv[], long *exit_code)
-{
-    return 0;
-};
-
-#define ANSIPIPE_LAUNCH(argc, argv)
 
 #endif
 #endif

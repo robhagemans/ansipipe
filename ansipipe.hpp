@@ -12,7 +12,15 @@
 #ifndef ANSIPIPE_H
 #define ANSIPIPE_H
 
-#ifdef _WIN32
+#ifndef _WIN32
+
+// dummy definitions for non-Windows platforms 
+bool ansipipe_init() { return true; };
+int ansipipe_launcher(int argc, char *argv[], long *exit_code) { return 0; };
+#define ANSIPIPE_LAUNCH(argc, argv)
+
+#else
+
 #include <windows.h>
 #include <stdio.h>
 #include <io.h>
@@ -63,12 +71,20 @@ bool ansipipe_init()
     return rc;
 }
 
-#else
+/* definitions for single-binary mode only */
 
-bool ansipipe_init() 
-{
-    return true;
-};
+// defined in launcher.c
+int ansipipe_launcher(int argc, char *argv[], long *exit_code);
+
+#define ANSIPIPE_LAUNCH(argc, argv) \
+    do { \
+        long exit_code = 0;\
+        if (ansipipe_launcher((argc), (argv), &exit_code)) \
+            return exit_code; \
+        else \
+            --argc; \
+    } while(0)
+
 
 #endif
 #endif

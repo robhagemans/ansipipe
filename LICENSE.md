@@ -27,8 +27,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 Licence terms for ANSI|pipe header files and console examples
 =============================================================
-These terms apply to ansipipe.h, ansipipe.hpp, ansipipe.py,
-example.c, example.h and example.py
+These terms apply to ansipipe.h, ansipipe.py, 
+example.c, example.cpp, example-single.c and example.py
 
 ANSI|pipe (c) 2015 Rob Hagemans.
 dualsubsystem (c) gaber...@gmail.com and Richard Eperjesi.

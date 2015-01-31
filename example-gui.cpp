@@ -21,7 +21,7 @@
 
 // add these for ANSI|pipe:
 #include <iostream>
-#include "ansipipe.hpp"
+#include "ansipipe.h"
 
 
 // Global variables

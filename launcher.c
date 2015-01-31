@@ -134,13 +134,19 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
-#ifdef _WIN32
+#ifndef _WIN32
+
+#ifndef ANSIPIPE_SINGLE
+int main() {}
+#endif
+
+#else
 
 #define UNICODE
 #define _WIN32_WINNT 0x0500
 #include <windows.h>
 #include <stdio.h>
-#include <process.h> /*_beginthread, _endthread*/
+#include <process.h>
 #include <string.h>
 #include <wctype.h>
 
@@ -153,7 +159,6 @@ int wcscasecmp(wchar_t *a, wchar_t *b)
     while (*a && *b && towupper(*a++) == towupper(*b++));
     return (*a || *b);
 }
-
 
 // handles to standard i/o streams
 HANDLE handle_cout;
@@ -1129,8 +1134,6 @@ void pipes_cerr_thread(void *dummy)
     while (ReadFile(cerr_pipe, buffer, PIPES_BUFLEN-1, &count, NULL)) {
         buffer[count] = 0;
         parser_print(&p, buffer);
-//        // no ansi escape sequences for stderr
-//        utf8_fprint(stderr, buffer);
     }
 }
 
@@ -1212,10 +1215,11 @@ void build_command_line(int argc, char *argv[], wchar_t *buffer, long buflen)
     #endif
 }
 
-
-
+// launcher function
 int ansipipe_launcher(int argc, char *argv[], long *exit_code)
 {
+    /* if this is a self-call, yield control to application main */
+
     #ifdef ANSIPIPE_SINGLE
     if (!strcmp(argv[argc-1], "ANSIPIPE_SELF_CALL"))
         return 0;
@@ -1250,7 +1254,7 @@ int ansipipe_launcher(int argc, char *argv[], long *exit_code)
     sinfo.cb = sizeof(STARTUPINFO);
     if (!CreateProcess(NULL, cmd_line, NULL, NULL, FALSE, 
                        CREATE_SUSPENDED, NULL, NULL, &sinfo, &pinfo)) {
-        fprintf(stderr, "ERROR: Could not create process %S.", cmd_line);
+        fprintf(stderr, "ERROR: Could not create process %S", cmd_line);
         return 1;
     }
     if (!pipes_create(pinfo.dwProcessId)) {
@@ -1299,15 +1303,6 @@ int main(int argc, char *argv[])
     long exit_code = 0;
     ansipipe_launcher(argc, argv, &exit_code);
     return exit_code;
-}
-#endif
-
-#else
-
-#ifndef ANSIPIPE_SINGLE
-int main()
-{
-    return 0;
 }
 #endif
 

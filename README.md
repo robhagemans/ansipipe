@@ -27,7 +27,7 @@ distraction.
 It's as simple as:  
 
     #include <iostream>
-    #include "ansipipe.hpp"
+    #include "ansipipe.h"
     
     int main() 
     {

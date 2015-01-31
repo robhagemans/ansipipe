@@ -1,5 +1,5 @@
 #include <iostream>
-#include "ansipipe.hpp"
+#include "ansipipe.h"
 
 /*
  * This source demonstrates how to use ANSI|pipe in a console-based C++ project.
@@ -11,7 +11,7 @@
 
 int main() 
 {
-    if (!ansipipe_init())
+    if (ansipipe_init() != 0)
         std::cout << "Not connected to ANSI|pipe. Output will be gibberish.\n";
             
     std::cout << "\x1b]2;ANSI|pipe demo\x07";

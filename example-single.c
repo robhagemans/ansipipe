@@ -4,7 +4,8 @@
 
 /*
  * This source demonstrates how to use ANSI|pipe in a console-based C project
- * to produce a *single* binary. Compile with -D ANSIPIPE_SINGLE
+ * to produce a *single* binary. Compile with 
+ * gcc example-single.c launcher.c -D ANSIPIPE_SINGLE
  *
  * You can compile and run this source on Unix without any changes.
  */
@@ -12,8 +13,6 @@
 int main(int argc, char *argv[]) 
 {
     ANSIPIPE_LAUNCH(argc, argv);
-    if (ansipipe_init() != 0)
-        printf("Not connected to ANSI|pipe. Output will be gibberish.\n");
     
     printf("\x1b]2;%s\x07", "ANSI|pipe demo");
     // From helloworldcollection.de. Lucida Sans doesn't support Asian scripts, but this all works:
