@@ -17,9 +17,9 @@ if platform.system() == 'Windows':
     pid = os.getpid()
 
     # construct named pipe names
-    name_out = '\\\\.\\pipe\\%dcout' % pid
-    name_in = '\\\\.\\pipe\\%dcin' % pid
-    name_err = '\\\\.\\pipe\\%dcerr' % pid
+    name_out = '\\\\.\\pipe\\ANSIPIPE_%d_POUT' % pid
+    name_in = '\\\\.\\pipe\\ANSIPIPE_%d_PIN' % pid
+    name_err = '\\\\.\\pipe\\ANSIPIPE_%d_PERR' % pid
 
     # attach named pipes to stdin/stdout/stderr
     try:
@@ -43,25 +43,34 @@ if platform.system() == 'Windows':
     
     termios_state = ICRNL | ECHO
     
-    def setraw(fd, dummy=None):
-        """ Set raw terminal mode (Windows stub). """
-        tcsetattr(fd, dummy, 0)
+    if ok:
+        def setraw(fd, dummy=None):
+            """ Set raw terminal mode (Windows stub). """
+            tcsetattr(fd, dummy, 0)
+        
+        def tcsetattr(fd, dummy, attr):
+            """ Set terminal attributes (Windows stub). """
+            if (fd == sys.stdin.fileno()):
+                num = 254
+                sys.stdout.write('\x1b]%d;ECHO\x07' % (num + (attr & ECHO != 0)))
+                sys.stdout.write('\x1b]%d;ICRNL\x07' % (num + (attr & ICRNL != 0)))
+                sys.stdout.write('\x1b]%d;ONLCR\x07' % (num + (attr & ONLCR != 0)))
+                termios_state = attr
+        
+        def tcgetattr(fd):
+            """ Get terminal attributes (Windows stub). """
+            if (fd == sys.stdin.fileno()):
+                return termios_state
+            else:
+                return 0
     
-    def tcsetattr(fd, dummy, attr):
-        """ Set terminal attributes (Windows stub). """
-        if (fd == sys.stdin.fileno()):
-            num = 254
-            sys.stdout.write('\x1b]%d;ECHO\x07' % (num + (attr & ECHO != 0)))
-            sys.stdout.write('\x1b]%d;ICRNL\x07' % (num + (attr & ICRNL != 0)))
-            sys.stdout.write('\x1b]%d;ONLCR\x07' % (num + (attr & ONLCR != 0)))
-            termios_state = attr
-    
-    def tcgetattr(fd):
-        """ Get terminal attributes (Windows stub). """
-        if (fd == sys.stdin.fileno()):
-            return termios_state
-        else:
-            return 0
+    else:
+        def setraw(fd, dummy=None):
+            pass
+        def tcsetattr(fd, dummy, attr):
+            pass            
+        def tcgetattr(fd):
+            return 0                
             
 else:
     ok = True;
