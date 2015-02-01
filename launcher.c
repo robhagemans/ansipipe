@@ -1141,12 +1141,13 @@ int build_command_line(int argc, char *argv[], wchar_t *buffer, long buflen)
     buffer[0] = L'\0';
     int count = 0;
     #ifdef ANSIPIPE_SINGLE
-    count += module_len;
+    count += module_len + 1;
     if (count > buflen) {
         fprintf(stderr, "ERROR: Application name too long.\n");
         return 1;
     }
     wcscat(buffer, module_name);
+    wcscat(buffer, L" ");
     #else
     // only call X.EXE if we're named X.COM
     // if we're an EXE the first argument is the child executable, so skip this
