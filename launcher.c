@@ -756,7 +756,6 @@ bool ansi_input(char *buffer, long buflen, long *count)
                     wide_buffer[wcount++] = L'\x35';
                     wide_buffer[wcount++] = L'\x7e';
                     break;
-
                 case VK_NEXT:
                     wide_buffer[wcount++] = L'\x1b';
                     wide_buffer[wcount++] = L'\x5b';
@@ -1169,6 +1168,9 @@ void pipes_start_threads()
 // buffer for command-line arguments to child process
 #define ARG_BUFLEN 2048
 
+#define STR_SELFCALL "ANSIPIPE_SELF_CALL"
+#define WSTR_SELFCALL L"ANSIPIPE_SELF_CALL"
+
 // create command line for child process
 void build_command_line(int argc, char *argv[], wchar_t *buffer, long buflen)
 {
@@ -1181,8 +1183,12 @@ void build_command_line(int argc, char *argv[], wchar_t *buffer, long buflen)
     buffer[0] = L'\0';
     int count = 0;
     #ifdef ANSIPIPE_SINGLE
-    wcscat(buffer, module_name);
     count += module_len;
+    if (count > buflen) {
+        fprintf(stderr, "ERROR: Application name too long.\n");
+        return 1;
+    }
+    wcscat(buffer, module_name);
     #else
     // only call X.EXE if we're named X.COM
     // if we're an EXE the first argument is the child executable, so skip this
@@ -1191,7 +1197,7 @@ void build_command_line(int argc, char *argv[], wchar_t *buffer, long buflen)
         count += module_len + 1;
         if (count > buflen) {
             fprintf(stderr, "ERROR: Application name too long.\n");
-            return;
+            return 1;
         }
         wcscat(buffer, module_name);
         wcscat(buffer, L".exe ");
@@ -1205,14 +1211,22 @@ void build_command_line(int argc, char *argv[], wchar_t *buffer, long buflen)
         // convert UTF-8 -> UTF-16
         MultiByteToWideChar(CP_UTF8, 0, argv[i], -1, wide_buffer, length);
         count += length + 1;
-        if (count >= buflen) break;
+        if (count > buflen) {
+            fprintf(stderr, "ERROR: Command line too long.\n");
+            return 1;
+        }
         wcscat(buffer, wide_buffer);
         wcscat(buffer, L" ");
     }
     #ifdef ANSIPIPE_SINGLE
-    wcscat(buffer, L" ANSIPIPE_SELF_CALL");
-    count += wcslen(L" ANSIPIPE_SELF_CALL");
+    count += wcslen(WSTR_SELF_CALL);
+    if (count > buflen) {
+        fprintf(stderr, "ERROR: Command line too long.\n");
+        return 1;
+    }
+    wcscat(buffer, WSTR_SELF_CALL);
     #endif
+    return 0;
 }
 
 // launcher function
@@ -1221,7 +1235,7 @@ int ansipipe_launcher(int argc, char *argv[], long *exit_code)
     /* if this is a self-call, yield control to application main */
 
     #ifdef ANSIPIPE_SINGLE
-    if (!strcmp(argv[argc-1], "ANSIPIPE_SELF_CALL"))
+    if (!strcmp(argv[argc-1], STR_SELFCALL))
         return 0;
     #endif    
     
@@ -1243,7 +1257,8 @@ int ansipipe_launcher(int argc, char *argv[], long *exit_code)
     /* build command line */
 
     wchar_t cmd_line[ARG_BUFLEN];
-    build_command_line(argc, argv, cmd_line, ARG_BUFLEN);
+    if (build_command_line(argc, argv, cmd_line, ARG_BUFLEN) != 0) 
+        return 1;
 
     /* start pipes */
     
