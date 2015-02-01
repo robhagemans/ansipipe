@@ -273,6 +273,16 @@ wchar_t* wstr_write(WSTR *wstr, wchar_t *instr, long length)
     return wstr->buffer + wstr->count;
 }
 
+wchar_t* wstr_write_char(WSTR *wstr, wchar_t c)
+{
+    if (wstr->count + 2 > wstr->size) {
+        wstr->count = wstr->size;
+        return NULL;
+    }
+    wstr->buffer[wstr->count++] = c;
+    wstr->buffer[wstr->count] = 0;
+    return wstr->buffer + wstr->count;
+}
 
 // ============================================================================
 // print buffer
@@ -807,128 +817,107 @@ int ansi_input(char *buffer, long buflen, long *count)
     // -  escape codes are at most 5 ascii-128 wchars; translate into 5 chars
     // so buflen/5 events should fit in buflen wchars and buflen utf8 chars.
     wchar_t wide_buffer[buflen];
+    WSTR wstr = wstr_create_empty(wide_buffer, buflen);
     INPUT_RECORD events[buflen / 5];
     long ecount;
     if (!ReadConsoleInput(handle_cin, events, buflen / 5, &ecount))
         return 1;
     int i;
-    int wcount = 0;
+    wchar_t c;
     for (i = 0; i < ecount; ++i) {
         if (events[i].EventType == KEY_EVENT) {
             if (events[i].Event.KeyEvent.bKeyDown) {
                 // insert ansi escape codes for arrow keys etc.
                 switch (events[i].Event.KeyEvent.wVirtualKeyCode) {
                 case VK_PRIOR:
-                    wcscpy(wide_buffer + wcount, L"\x1b[5~");
-                    wcount += 4;
+                    wstr_write(&wstr, L"\x1b[5~", 4);
                     break;
                 case VK_NEXT:
-                    wcscpy(wide_buffer + wcount, L"\x1b[6~");
-                    wcount += 4;
+                    wstr_write(&wstr, L"\x1b[6~", 4);
                     break;
                 case VK_END:
-                    wcscpy(wide_buffer + wcount, L"\x1bOF");
-                    wcount += 3;
+                    wstr_write(&wstr, L"\x1bOF", 3);
                     break;
                 case VK_HOME:
-                    wcscpy(wide_buffer + wcount, L"\x1bOH");
-                    wcount += 3;
+                    wstr_write(&wstr, L"\x1bOH", 3);
                     break;
                 case VK_LEFT:
-                    wcscpy(wide_buffer + wcount, L"\x1b[D");
-                    wcount += 3;
+                    wstr_write(&wstr, L"\x1b[D", 3);
                     break;
                 case VK_UP:
-                    wcscpy(wide_buffer + wcount, L"\x1b[A");
-                    wcount += 3;
+                    wstr_write(&wstr, L"\x1b[A", 3);
                     break;
                 case VK_RIGHT:
-                    wcscpy(wide_buffer + wcount, L"\x1b[C");
-                    wcount += 3;
+                    wstr_write(&wstr, L"\x1b[C", 3);
                     break;
                 case VK_DOWN:
-                    wcscpy(wide_buffer + wcount, L"\x1b[B");
-                    wcount += 3;
+                    wstr_write(&wstr, L"\x1b[B", 3);
                     break;
                 case VK_INSERT:
-                    wcscpy(wide_buffer + wcount, L"\x1b[2~");
-                    wcount += 4;
+                    wstr_write(&wstr, L"\x1b[2~", 4);
                     break;
                 case VK_DELETE:
-                    wcscpy(wide_buffer + wcount, L"\x1b[3~");
-                    wcount += 4;
+                    wstr_write(&wstr, L"\x1b[3~", 4);
                     break;
                 case VK_F1:
-                    wcscpy(wide_buffer + wcount, L"\x1bOP");
-                    wcount += 3;
+                    wstr_write(&wstr, L"\x1bOP", 3);
                     break;
                 case VK_F2:
-                    wcscpy(wide_buffer + wcount, L"\x1bOQ");
-                    wcount += 3;
+                    wstr_write(&wstr, L"\x1bOQ", 3);
                     break;
                 case VK_F3:
-                    wcscpy(wide_buffer + wcount, L"\x1bOR");
-                    wcount += 3;
+                    wstr_write(&wstr, L"\x1bOR", 3);
                     break;
                 case VK_F4:
-                    wcscpy(wide_buffer + wcount, L"\x1bOS");
-                    wcount += 3;
+                    wstr_write(&wstr, L"\x1bOS", 3);
                     break;
                 case VK_F5:
-                    wcscpy(wide_buffer + wcount, L"\x1b[15~");
-                    wcount += 5;
+                    wstr_write(&wstr, L"\x1b[15~", 5);
                     break;
                 case VK_F6:
-                    wcscpy(wide_buffer + wcount, L"\x1b[17~");
-                    wcount += 5;
+                    wstr_write(&wstr, L"\x1b[17~", 5);
                     break;
                 case VK_F7:
-                    wcscpy(wide_buffer + wcount, L"\x1b[18~");
-                    wcount += 5;
+                    wstr_write(&wstr, L"\x1b[18~", 5);
                     break;
                 case VK_F8:
-                    wcscpy(wide_buffer + wcount, L"\x1b[19~");
-                    wcount += 5;
+                    wstr_write(&wstr, L"\x1b[19~", 5);
                     break;
                 case VK_F9:
-                    wcscpy(wide_buffer + wcount, L"\x1b[20~");
-                    wcount += 5;
+                    wstr_write(&wstr, L"\x1b[20~", 5);
                     break;
                 case VK_F10:
-                    wcscpy(wide_buffer + wcount, L"\x1b[21~");
-                    wcount += 5;
+                    wstr_write(&wstr, L"\x1b[21~", 5);
                     break;
                 case VK_F11:
-                    wcscpy(wide_buffer + wcount, L"\x1b[23~");
-                    wcount += 5;
+                    wstr_write(&wstr, L"\x1b[23~", 5);
                     break;
                 case VK_F12:
-                    wcscpy(wide_buffer + wcount, L"\x1b[24~");
-                    wcount += 5;
+                    wstr_write(&wstr, L"\x1b[24~", 5);
                     break;
                 default:
-                    wide_buffer[wcount++] = events[i].Event.KeyEvent.uChar.UnicodeChar;
+                    c = events[i].Event.KeyEvent.uChar.UnicodeChar;
+                    wstr_write_char(&wstr, c);
                     if (flags.echo) {
-                        if (wide_buffer[wcount-1] == L'\r')
+                        if (c == L'\r')
                             printf("\n");
                         else
-                            printf("%lc", wide_buffer[wcount-1]);
+                            printf("%lc", c);
                     }
                 }
-                // safety check. leave at least 5 chars for the longest sequence
-                if (wcount > buflen-5) {
+                // overflow check
+                if (wstr_write(&wstr, L"", 0) == NULL) {
                     fprintf(stderr, "ERROR: Input buffer overflow.\n");
                     return 1;
                 }
                 if (flags.icrnl) {
                     // replace last char CR -> LF
-                    if (wide_buffer[wcount-1] == L'\r') 
-                        wide_buffer[wcount-1] = L'\n';
+                    if (wstr.buffer[wstr.count-1] == L'\r') 
+                        wstr.buffer[wstr.count-1] = L'\n';
                 }
             }
         }
     }
-    wide_buffer[wcount] = 0;
     // find UTF8 string length    
     int length = WideCharToMultiByte(CP_UTF8, 0, wide_buffer, -1, NULL, 0, NULL, NULL);
     // safety check
@@ -1267,7 +1256,6 @@ int build_command_line(int argc, char *argv[], wchar_t *buffer, long buflen)
         fprintf(stderr, "ERROR: Command line too long.\n");
         return 1;
     }
-    printf("calling [%S] %d\n", command_line, wcslen(command_line.buffer));
     return 0;
 }
 
