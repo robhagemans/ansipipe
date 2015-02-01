@@ -324,8 +324,9 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
         }
         // Ignore any other \e[? sequences.
         if (es.prefix2 != 0) return;
-
+        // retrieve current positions and sizes
         GetConsoleScreenBufferInfo(handle, &info);
+        
         switch (es.suffix) {
         case 'm':
             if (es.argc == 0) es.argv[es.argc++] = 0;
@@ -751,135 +752,92 @@ bool ansi_input(char *buffer, long buflen, long *count)
                 // insert ansi escape codes for arrow keys etc.
                 switch (events[i].Event.KeyEvent.wVirtualKeyCode) {
                 case VK_PRIOR:
-                    wide_buffer[wcount++] = L'\x1b';
-                    wide_buffer[wcount++] = L'\x5b';
-                    wide_buffer[wcount++] = L'\x35';
-                    wide_buffer[wcount++] = L'\x7e';
+                    wcscpy(wide_buffer + wcount, L"\x1b[5~");
+                    wcount += 4;
                     break;
                 case VK_NEXT:
-                    wide_buffer[wcount++] = L'\x1b';
-                    wide_buffer[wcount++] = L'\x5b';
-                    wide_buffer[wcount++] = L'\x36';
-                    wide_buffer[wcount++] = L'\x7e';
+                    wcscpy(wide_buffer + wcount, L"\x1b[6~");
+                    wcount += 4;
                     break;
                 case VK_END:
-                    wide_buffer[wcount++] = L'\x1b';
-                    wide_buffer[wcount++] = L'\x4f';
-                    wide_buffer[wcount++] = L'\x46';
+                    wcscpy(wide_buffer + wcount, L"\x1bOF");
+                    wcount += 3;
                     break;
                 case VK_HOME:
-                    wide_buffer[wcount++] = L'\x1b';
-                    wide_buffer[wcount++] = L'\x4f';
-                    wide_buffer[wcount++] = L'\x48';
+                    wcscpy(wide_buffer + wcount, L"\x1bOH");
+                    wcount += 3;
                     break;
                 case VK_LEFT:
-                    wide_buffer[wcount++] = L'\x1b';
-                    wide_buffer[wcount++] = L'\x5b';
-                    wide_buffer[wcount++] = L'\x44';
+                    wcscpy(wide_buffer + wcount, L"\x1b[D");
+                    wcount += 3;
                     break;
                 case VK_UP:
-                    wide_buffer[wcount++] = L'\x1b';
-                    wide_buffer[wcount++] = L'\x5b';
-                    wide_buffer[wcount++] = L'\x41';
+                    wcscpy(wide_buffer + wcount, L"\x1b[A");
+                    wcount += 3;
                     break;
                 case VK_RIGHT:
-                    wide_buffer[wcount++] = L'\x1b';
-                    wide_buffer[wcount++] = L'\x5b';
-                    wide_buffer[wcount++] = L'\x43';
+                    wcscpy(wide_buffer + wcount, L"\x1b[C");
+                    wcount += 3;
                     break;
                 case VK_DOWN:
-                    wide_buffer[wcount++] = L'\x1b';
-                    wide_buffer[wcount++] = L'\x5b';
-                    wide_buffer[wcount++] = L'\x42';
+                    wcscpy(wide_buffer + wcount, L"\x1b[B");
+                    wcount += 3;
                     break;
                 case VK_INSERT:
-                    wide_buffer[wcount++] = L'\x1b';
-                    wide_buffer[wcount++] = L'\x5b';
-                    wide_buffer[wcount++] = L'\x32';
-                    wide_buffer[wcount++] = L'\x7e';
+                    wcscpy(wide_buffer + wcount, L"\x1b[2~");
+                    wcount += 4;
                     break;
                 case VK_DELETE:
-                    wide_buffer[wcount++] = L'\x1b';
-                    wide_buffer[wcount++] = L'\x5b';
-                    wide_buffer[wcount++] = L'\x33';
-                    wide_buffer[wcount++] = L'\x7e';
+                    wcscpy(wide_buffer + wcount, L"\x1b[3~");
+                    wcount += 4;
                     break;
                 case VK_F1:
-                    wide_buffer[wcount++] = L'\x1b';
-                    wide_buffer[wcount++] = L'\x4f';
-                    wide_buffer[wcount++] = L'\x50';
+                    wcscpy(wide_buffer + wcount, L"\x1bOP");
+                    wcount += 3;
                     break;
                 case VK_F2:
-                    wide_buffer[wcount++] = L'\x1b';
-                    wide_buffer[wcount++] = L'\x4f';
-                    wide_buffer[wcount++] = L'\x51';
+                    wcscpy(wide_buffer + wcount, L"\x1bOQ");
+                    wcount += 3;
                     break;
                 case VK_F3:
-                    wide_buffer[wcount++] = L'\x1b';
-                    wide_buffer[wcount++] = L'\x4f';
-                    wide_buffer[wcount++] = L'\x52';
+                    wcscpy(wide_buffer + wcount, L"\x1bOR");
+                    wcount += 3;
                     break;
                 case VK_F4:
-                    wide_buffer[wcount++] = L'\x1b';
-                    wide_buffer[wcount++] = L'\x4f';
-                    wide_buffer[wcount++] = L'\x53';
+                    wcscpy(wide_buffer + wcount, L"\x1bOS");
+                    wcount += 3;
                     break;
                 case VK_F5:
-                    wide_buffer[wcount++] = L'\x1b';
-                    wide_buffer[wcount++] = L'\x5b';
-                    wide_buffer[wcount++] = L'\x31';
-                    wide_buffer[wcount++] = L'\x35';
-                    wide_buffer[wcount++] = L'\x7e';
+                    wcscpy(wide_buffer + wcount, L"\x1b[15~");
+                    wcount += 5;
                     break;
                 case VK_F6:
-                    wide_buffer[wcount++] = L'\x1b';
-                    wide_buffer[wcount++] = L'\x5b';
-                    wide_buffer[wcount++] = L'\x31';
-                    wide_buffer[wcount++] = L'\x37';
-                    wide_buffer[wcount++] = L'\x7e';
+                    wcscpy(wide_buffer + wcount, L"\x1b[17~");
+                    wcount += 5;
                     break;
                 case VK_F7:
-                    wide_buffer[wcount++] = L'\x1b';
-                    wide_buffer[wcount++] = L'\x5b';
-                    wide_buffer[wcount++] = L'\x31';
-                    wide_buffer[wcount++] = L'\x38';
-                    wide_buffer[wcount++] = L'\x7e';
+                    wcscpy(wide_buffer + wcount, L"\x1b[18~");
+                    wcount += 5;
                     break;
                 case VK_F8:
-                    wide_buffer[wcount++] = L'\x1b';
-                    wide_buffer[wcount++] = L'\x5b';
-                    wide_buffer[wcount++] = L'\x31';
-                    wide_buffer[wcount++] = L'\x39';
-                    wide_buffer[wcount++] = L'\x7e';
+                    wcscpy(wide_buffer + wcount, L"\x1b[19~");
+                    wcount += 5;
                     break;
                 case VK_F9:
-                    wide_buffer[wcount++] = L'\x1b';
-                    wide_buffer[wcount++] = L'\x5b';
-                    wide_buffer[wcount++] = L'\x32';
-                    wide_buffer[wcount++] = L'\x30';
-                    wide_buffer[wcount++] = L'\x7e';
+                    wcscpy(wide_buffer + wcount, L"\x1b[20~");
+                    wcount += 5;
                     break;
-
                 case VK_F10:
-                    wide_buffer[wcount++] = L'\x1b';
-                    wide_buffer[wcount++] = L'\x5b';
-                    wide_buffer[wcount++] = L'\x32';
-                    wide_buffer[wcount++] = L'\x31';
-                    wide_buffer[wcount++] = L'\x7e';
+                    wcscpy(wide_buffer + wcount, L"\x1b[21~");
+                    wcount += 5;
                     break;
                 case VK_F11:
-                    wide_buffer[wcount++] = L'\x1b';
-                    wide_buffer[wcount++] = L'\x5b';
-                    wide_buffer[wcount++] = L'\x32';
-                    wide_buffer[wcount++] = L'\x33';
-                    wide_buffer[wcount++] = L'\x7e';
+                    wcscpy(wide_buffer + wcount, L"\x1b[23~");
+                    wcount += 5;
                     break;
                 case VK_F12:
-                    wide_buffer[wcount++] = L'\x1b';
-                    wide_buffer[wcount++] = L'\x5b';
-                    wide_buffer[wcount++] = L'\x31';
-                    wide_buffer[wcount++] = L'\x34';
-                    wide_buffer[wcount++] = L'\x7e';
+                    wcscpy(wide_buffer + wcount, L"\x1b[24~");
+                    wcount += 5;
                     break;
                 default:
                     wide_buffer[wcount++] = events[i].Event.KeyEvent.uChar.UnicodeChar;
@@ -890,13 +848,13 @@ bool ansi_input(char *buffer, long buflen, long *count)
                             printf("%lc", wide_buffer[wcount-1]);
                     }
                 }
-                // safety check
-                if (wcount >= buflen / 4) {
+                // safety check. leave at least 5 chars for the longest sequence
+                if (wcount > buflen-5) {
                     fprintf(stderr, "ERROR: Input buffer overflow.\n");
                     return false;
                 }
                 if (flags.icrnl) {
-                    // CR -> LF
+                    // replace last char CR -> LF
                     if (wide_buffer[wcount-1] == L'\r') 
                         wide_buffer[wcount-1] = L'\n';
                 }
