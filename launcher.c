@@ -1130,7 +1130,7 @@ void pipes_start_threads()
 #define WSTR_SELFCALL L"ANSIPIPE_SELF_CALL"
 
 // create command line for child process
-void build_command_line(int argc, char *argv[], wchar_t *buffer, long buflen)
+int build_command_line(int argc, char *argv[], wchar_t *buffer, long buflen)
 {
     // get full program name, exclude extension
     wchar_t module_name[MAX_PATH+1];
@@ -1177,12 +1177,12 @@ void build_command_line(int argc, char *argv[], wchar_t *buffer, long buflen)
         wcscat(buffer, L" ");
     }
     #ifdef ANSIPIPE_SINGLE
-    count += wcslen(WSTR_SELF_CALL);
+    count += wcslen(WSTR_SELFCALL);
     if (count > buflen) {
         fprintf(stderr, "ERROR: Command line too long.\n");
         return 1;
     }
-    wcscat(buffer, WSTR_SELF_CALL);
+    wcscat(buffer, WSTR_SELFCALL);
     #endif
     return 0;
 }
