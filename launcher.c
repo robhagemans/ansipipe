@@ -1178,9 +1178,9 @@ void proc_join(PROCESS_INFORMATION pinfo, long *exit_code)
 // buffer for command-line arguments to child process
 #define ARG_BUFLEN 2048
 
-// self-call command line flag (these need to be the same)
+// self-call command line flag
 #define STR_SELFCALL "ANSIPIPE_SELF_CALL"
-#define WSTR_SELFCALL L"ANSIPIPE_SELF_CALL"
+#define WSTR_SELFCALL L##STR_SELFCALL
 
 // create command line for child process
 int build_command_line(int argc, char *argv[], wchar_t *buffer, long buflen)
