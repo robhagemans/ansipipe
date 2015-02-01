@@ -732,8 +732,8 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
     }
 }
 
-// retrieve utf-8 and ansi sequences from standard input
-bool ansi_input(char *buffer, long buflen, long *count)
+// retrieve utf-8 and ansi sequences from standard input. 0 == success
+int ansi_input(char *buffer, long buflen, long *count)
 {
     // event buffer size: 
     // -  for utf8, buflen/4 is OK as one wchar is at most 4 chars of utf8
@@ -743,7 +743,7 @@ bool ansi_input(char *buffer, long buflen, long *count)
     INPUT_RECORD events[buflen / 5];
     long ecount;
     if (!ReadConsoleInput(handle_cin, events, buflen / 5, &ecount))
-        return false;
+        return 1;
     int i;
     int wcount = 0;
     for (i = 0; i < ecount; ++i) {
@@ -851,7 +851,7 @@ bool ansi_input(char *buffer, long buflen, long *count)
                 // safety check. leave at least 5 chars for the longest sequence
                 if (wcount > buflen-5) {
                     fprintf(stderr, "ERROR: Input buffer overflow.\n");
-                    return false;
+                    return 1;
                 }
                 if (flags.icrnl) {
                     // replace last char CR -> LF
@@ -867,13 +867,13 @@ bool ansi_input(char *buffer, long buflen, long *count)
     // safety check
     if (length >= buflen) {
         fprintf(stderr, "ERROR: UTF-8 buffer overflow.\n");
-        return false;
+        return 1;
     }
     // convert to UTF-8
     WideCharToMultiByte(CP_UTF8, 0, wide_buffer, -1, buffer, length, NULL, NULL);
     // exclude NUL terminator in reported num chars
     *count = length-1;
-    return true;
+    return 0;
 }
 
 
@@ -1034,25 +1034,26 @@ void parser_print(PARSER *p, char *buffer)
 
 // Create named pipes for stdin, stdout and stderr
 // Parameter: process id
-bool pipes_create(long pid) 
+// returns 0 on success
+int pipes_create(long pid) 
 {
     wchar_t name[256];
     swprintf(name, L"\\\\.\\pipe\\%dcout", pid);
     if (INVALID_HANDLE_VALUE == (cout_pipe = CreateNamedPipe(
                 name, PIPE_ACCESS_INBOUND, PIPE_TYPE_BYTE | PIPE_READMODE_BYTE,
                 1, PIPES_BUFLEN, PIPES_BUFLEN, PIPES_TIMEOUT, NULL)))
-        return 0;
+        return 1;
     swprintf(name, L"\\\\.\\pipe\\%dcin", pid);
     if (INVALID_HANDLE_VALUE == (cin_pipe = CreateNamedPipe(
                 name, PIPE_ACCESS_OUTBOUND, PIPE_TYPE_BYTE | PIPE_READMODE_BYTE,
                 1, PIPES_BUFLEN, PIPES_BUFLEN, PIPES_TIMEOUT, NULL)))
-        return 0;
+        return 1;
     swprintf(name, L"\\\\.\\pipe\\%dcerr", pid);
     if (INVALID_HANDLE_VALUE == (cerr_pipe = CreateNamedPipe(
                 name, PIPE_ACCESS_INBOUND, PIPE_TYPE_BYTE | PIPE_READMODE_BYTE,
                 1, PIPES_BUFLEN, PIPES_BUFLEN, PIPES_TIMEOUT, NULL)))
-        return 0;
-    return 1;
+        return 1;
+    return 0;
 }
 
 // Close all named pipes
@@ -1102,7 +1103,7 @@ void pipes_cin_thread(void *dummy)
     long countw = 0;
     ConnectNamedPipe(cin_pipe, NULL);
     for(;;) {
-        if (!ansi_input(buffer, PIPES_BUFLEN-1, &countr))
+        if (ansi_input(buffer, PIPES_BUFLEN-1, &countr) != 0)
             break;
         if (!WriteFile(cin_pipe, buffer, countr, &countw, NULL))
             break;
@@ -1231,7 +1232,7 @@ int ansipipe_launcher(int argc, char *argv[], long *exit_code)
         fprintf(stderr, "ERROR: Could not create process %S", cmd_line);
         return 1;
     }
-    if (!pipes_create(pinfo.dwProcessId)) {
+    if (pipes_create(pinfo.dwProcessId) != 0) {
         fprintf(stderr, "ERROR: Could not create named pipes.\n");
         return 1;
     }
