@@ -239,31 +239,55 @@ int background_default = BACKGROUND_BLACK;
 // ============================================================================
 
 #define PBUF_SIZE 256
-
+// max length of utf-8 sequence is 4 bytes
+#define PBUF_PREBUF_SIZE 8
 typedef struct {
     HANDLE handle;
-    int nchar;
+    int count;
     wchar_t buf[PBUF_SIZE];
+    char prebuf[PBUF_PREBUF_SIZE];
+    int precount;
+    int presize;
 } PBUF;
 
 //  write buffer to console
 void pbuf_flush(PBUF *pbuf)
 {
-    if (pbuf->nchar <= 0) return;
+    if (pbuf->count <= 0) return;
     long written;
-    WriteConsoleW(pbuf->handle, pbuf->buf, pbuf->nchar, &written, NULL);
-    pbuf->nchar = 0;
+    WriteConsoleW(pbuf->handle, pbuf->buf, pbuf->count, &written, NULL);
+    pbuf->count = 0;
+}
+
+// convert prebuffer UTF-8 sequence into one wide char for buffer
+void pbuf_preflush(PBUF *pbuf)
+{
+    wchar_t wide_buffer[2] = L"";
+    // utf8 sequences could be clipped if buffer is full, doesn't seem to happen
+    MultiByteToWideChar(CP_UTF8, 0, pbuf->prebuf, pbuf->precount, wide_buffer, 1);
+    wide_buffer[1] = 0;
+    pbuf->buf[pbuf->count++] = wide_buffer[0];
+    pbuf->precount = 0;
+    if (flags.onlcr && wide_buffer[0] == L'\r') 
+        pbuf->buf[pbuf->count++] = L'\n';
 }
 
 //  add a character in the buffer and flush the buffer if it is full
-void pbuf_push(PBUF *pbuf, wchar_t c)
+void pbuf_push(PBUF *pbuf, unsigned char c)
 {
     // skip NUL
     if (!c) return;
-    pbuf->buf[pbuf->nchar++] = c;
-    if (flags.onlcr && c == L'\r') pbuf->buf[pbuf->nchar++] = L'\n';
+    pbuf->prebuf[pbuf->precount++] = c;
+    if (1 == pbuf->precount) {
+        // first byte determines sequence length
+        if (c >= 0xf0) pbuf->presize = 4;
+        else if (c >= 0xe0) pbuf->presize = 3;
+        else if (c >= 0xc0) pbuf->presize = 2;
+        else pbuf->presize = 1;
+    }
+    if (pbuf->precount >= pbuf->presize) pbuf_preflush(pbuf);
     // keep at least 2 wchars free so we can add CRLF at once if necessary
-    if (pbuf->nchar >= PBUF_SIZE-1) pbuf_flush(pbuf);
+    if (pbuf->count >= PBUF_SIZE-1) pbuf_flush(pbuf);
 }
 
 
@@ -917,25 +941,16 @@ void parser_init(PARSER *p, HANDLE handle)
 // characters on the console.
 // If the number of arguments es.argc > MAX_ARG, only the MAX_ARG-1 firsts and
 // the last arguments are processed (no es.argv[] overflow).
-void parser_print(PARSER *p, char *buffer)
+void parser_print(PARSER *p, char *s, int buflen)
 {
-    // get required buffer length
-    int length = MultiByteToWideChar(CP_UTF8, 0, buffer, -1, NULL, 0);
-    wchar_t wide_buffer[length];
-    // convert UTF-8 -> UTF-16
-    // utf8 sequences could be clipped if buffer is full, doesn't seem to happen
-    MultiByteToWideChar(CP_UTF8, 0, buffer, -1, wide_buffer, length);
-    // start parsing
-    int i;
-    wchar_t *s;
-    for (i = length, s = wide_buffer; i > 0 && *s; i--, s++) {
+    for (; buflen && *s; --buflen, ++s) {
         switch (p->state) {
         case 1:
-            if (*s == L'\x1b') p->state = 2;
+            if (*s == '\x1b') p->state = 2;
             else pbuf_push(&(p->pbuf), p->term.concealed ? ' ' : *s);    
             break;
         case 2:
-            if (*s == L'\x1b');       // \e\e...\e == \e
+            if (*s == '\x1b');       // \e\e...\e == \e
             else if (*s == '[') {
                 pbuf_flush(&(p->pbuf));
                 p->es.prefix = *s;
@@ -1077,7 +1092,7 @@ void pipes_cout_thread(void *dummy)
     ConnectNamedPipe(cout_pipe, NULL);
     while (ReadFile(cout_pipe, buffer, PIPES_BUFLEN-1, &count, NULL)) {
         buffer[count] = 0;
-        parser_print(&p, buffer);
+        parser_print(&p, buffer, PIPES_BUFLEN);
     }
 }
 
@@ -1091,7 +1106,7 @@ void pipes_cerr_thread(void *dummy)
     ConnectNamedPipe(cerr_pipe, NULL);
     while (ReadFile(cerr_pipe, buffer, PIPES_BUFLEN-1, &count, NULL)) {
         buffer[count] = 0;
-        parser_print(&p, buffer);
+        parser_print(&p, buffer, PIPES_BUFLEN);
     }
 }
 
