@@ -420,17 +420,10 @@ void console_set_pos(HANDLE handle, COORD size, int x, int y)
 // interpret the last escape sequence scanned by ansi_print()
 void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
 {
-    int i;
-    CONSOLE_SCREEN_BUFFER_INFO info;
-    CONSOLE_CURSOR_INFO curs_info;
-    long len;
-    COORD pos;
-    SMALL_RECT rect;
-    CHAR_INFO char_info;
-    
     if (es.prefix == '[') {
         if (es.prefix2 == '?' && (es.suffix == 'h' || es.suffix == 'l')) {
             if (es.argc == 1 && es.argv[0] == 25) {
+                CONSOLE_CURSOR_INFO curs_info;
                 GetConsoleCursorInfo(handle, &curs_info);
                 curs_info.bVisible = (es.suffix == 'h');
                 SetConsoleCursorInfo(handle, &curs_info);
@@ -440,6 +433,7 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
         // Ignore any other \e[? sequences.
         if (es.prefix2 != 0) return;
         // retrieve current positions and sizes
+        CONSOLE_SCREEN_BUFFER_INFO info;
         GetConsoleScreenBufferInfo(handle, &info);
         COORD curs_pos = info.dwCursorPosition;
         COORD size = info.dwSize;
@@ -448,6 +442,7 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
         switch (es.suffix) {
         case 'm':
             if (es.argc == 0) es.argv[es.argc++] = 0;
+            int i;
             for(i = 0; i < es.argc; i++) {
                 switch (es.argv[i]) {
                 case 0:
@@ -509,18 +504,18 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
             switch (es.argv[0]) {
             case 0:              
                 // ESC[0J erase from cursor to end of display
-                len = (size.Y-curs_pos.Y-1) * size.X + size.X - curs_pos.X - 1;
-                console_fill(handle, ' ', attr, curs_pos.X, curs_pos.Y, len);
+                console_fill(handle, ' ', attr, curs_pos.X, curs_pos.Y, 
+                        (size.Y-curs_pos.Y-1)*size.X + size.X - curs_pos.X-1);
                 return;
             case 1:              
                 // ESC[1J erase from start to cursor.
-                len = curs_pos.Y * size.X + curs_pos.X + 1;
-                console_fill(handle, ' ', attr, 0, 0, len);
+                console_fill(handle, ' ', attr, 0, 0, 
+                                            curs_pos.Y*size.X + curs_pos.X + 1);
                 return;
             case 2:              
                 // ESC[2J Clear screen and home cursor
                 console_fill(handle, ' ', attr, 0, 0, size.X * size.Y);
-                SetConsoleCursorPosition(handle, pos);
+                console_set_pos(handle, size, 0, 0);
                 return;
             default :
                 return;
@@ -531,8 +526,8 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
             switch (es.argv[0]) {
             case 0:              
                 // ESC[0K Clear to end of line
-                len = info.srWindow.Right - curs_pos.X + 1;
-                console_fill(handle, ' ', attr, curs_pos.X, curs_pos.Y, len);
+                console_fill(handle, ' ', attr, curs_pos.X, curs_pos.Y, 
+                                        info.srWindow.Right - curs_pos.X + 1);
                 return;
             case 1:              
                 // ESC[1K Clear from start of line to cursor
@@ -680,18 +675,20 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
             //ESC[8;#;#;t resize terminal to # rows, # cols
             if (es.argc < 3) return;
             if (es.argv[0] != 8) return;
-            pos.X = es.argv[2];
-            pos.Y = es.argv[1];
-            rect.Top = 0;
-            rect.Left = 0;
-            rect.Bottom = es.argv[1] - 1;
-            rect.Right = es.argv[2] - 1;
-            SetConsoleScreenBufferSize(handle, pos);
-            SetConsoleWindowInfo(handle, true, &rect);
+            COORD new_size;
+            new_size.X = es.argv[2];
+            new_size.Y = es.argv[1];
+            SMALL_RECT new_screen;
+            new_screen.Top = 0;
+            new_screen.Left = 0;
+            new_screen.Bottom = es.argv[1] - 1;
+            new_screen.Right = es.argv[2] - 1;
+            SetConsoleScreenBufferSize(handle, new_size);
+            SetConsoleWindowInfo(handle, true, &new_screen);
             // do it twice, because one call can only make the console bigger 
             // and the other call can only make it smaller. plus I am lazy.
-            SetConsoleScreenBufferSize(handle, pos);
-            SetConsoleWindowInfo(handle, true, &rect);
+            SetConsoleScreenBufferSize(handle, new_size);
+            SetConsoleWindowInfo(handle, true, &new_screen);
             return;
         }
     }
