@@ -1034,22 +1034,21 @@ void parser_print(PARSER *p, char *buffer)
 
 
 // Create named pipes for stdin, stdout and stderr
-// Parameter: process id
 // returns 0 on success
 int pipes_create(long pid) 
 {
-    wchar_t name[256];
-    swprintf(name, L"\\\\.\\pipe\\%dcout", pid);
+    wchar_t name[ANSIPIPE_NAME_LEN];
+    swprintf(name, ANSIPIPE_POUT_FMT, pid);
     if (INVALID_HANDLE_VALUE == (cout_pipe = CreateNamedPipe(
                 name, PIPE_ACCESS_INBOUND, PIPE_TYPE_BYTE | PIPE_READMODE_BYTE,
                 1, PIPES_BUFLEN, PIPES_BUFLEN, PIPES_TIMEOUT, NULL)))
         return 1;
-    swprintf(name, L"\\\\.\\pipe\\%dcin", pid);
+    swprintf(name, ANSIPIPE_PIN_FMT, pid);
     if (INVALID_HANDLE_VALUE == (cin_pipe = CreateNamedPipe(
                 name, PIPE_ACCESS_OUTBOUND, PIPE_TYPE_BYTE | PIPE_READMODE_BYTE,
                 1, PIPES_BUFLEN, PIPES_BUFLEN, PIPES_TIMEOUT, NULL)))
         return 1;
-    swprintf(name, L"\\\\.\\pipe\\%dcerr", pid);
+    swprintf(name, ANSIPIPE_PERR_FMT, pid);
     if (INVALID_HANDLE_VALUE == (cerr_pipe = CreateNamedPipe(
                 name, PIPE_ACCESS_INBOUND, PIPE_TYPE_BYTE | PIPE_READMODE_BYTE,
                 1, PIPES_BUFLEN, PIPES_BUFLEN, PIPES_TIMEOUT, NULL)))
@@ -1128,6 +1127,7 @@ void pipes_start_threads()
 // buffer for command-line arguments to child process
 #define ARG_BUFLEN 2048
 
+// self-call command line flag (these need to be the same)
 #define STR_SELFCALL "ANSIPIPE_SELF_CALL"
 #define WSTR_SELFCALL L"ANSIPIPE_SELF_CALL"
 

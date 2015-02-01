@@ -24,21 +24,21 @@ static int ansipipe_init() { return 0; };
 #include <stdio.h>
 #include <io.h>
 
-#define NAME_LEN 256
-#define POUT_FMT L"\\\\.\\pipe\\%dcout"
-#define PIN_FMT L"\\\\.\\pipe\\%dcin"
-#define PERR_FMT L"\\\\.\\pipe\\%dcerr"
+#define ANSIPIPE_NAME_LEN 256
+#define ANSIPIPE_POUT_FMT L"\\\\.\\pipe\\%dcout"
+#define ANSIPIPE_PIN_FMT L"\\\\.\\pipe\\%dcin"
+#define ANSIPIPE_PERR_FMT L"\\\\.\\pipe\\%dcerr"
 
 // initialise ansipipe i/o streams. 0 is success.
 static int ansipipe_init()
 {
     // construct named pipe names
-    wchar_t name_out[NAME_LEN];
-    wchar_t name_in[NAME_LEN];
-    wchar_t name_err[NAME_LEN];
-    swprintf(name_out, POUT_FMT, GetCurrentProcessId());
-    swprintf(name_in, PIN_FMT, GetCurrentProcessId());
-    swprintf(name_err, PERR_FMT, GetCurrentProcessId());
+    wchar_t name_out[ANSIPIPE_NAME_LEN];
+    wchar_t name_in[ANSIPIPE_NAME_LEN];
+    wchar_t name_err[ANSIPIPE_NAME_LEN];
+    swprintf(name_out, ANSIPIPE_POUT_FMT, GetCurrentProcessId());
+    swprintf(name_in, ANSIPIPE_PIN_FMT, GetCurrentProcessId());
+    swprintf(name_err, ANSIPIPE_PERR_FMT, GetCurrentProcessId());
 
     // keep a copy of the existing stdio streams in case we fail
     int old_out = _dup(_fileno(stdout));
