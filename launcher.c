@@ -405,6 +405,17 @@ void console_scroll(HANDLE handle, TERM *term, wchar_t c, int attr, int left, in
     ScrollConsoleScreenBuffer(handle, &rect, &(term->scroll_region), pos, &char_info);
 }
 
+void console_set_pos(HANDLE handle, COORD size, int x, int y)
+{
+    if (y < 0) y = 0;
+    else if (y >= size.Y) y = size.Y - 1;
+    if (x < 0) x = 0;
+    else if (x >= size.X) x = size.X - 1;
+    COORD pos;
+    pos.X = x;
+    pos.Y = y;
+    SetConsoleCursorPosition(handle, pos);
+}
 
 // interpret the last escape sequence scanned by ansi_print()
 void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
@@ -412,7 +423,7 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
     int i;
     CONSOLE_SCREEN_BUFFER_INFO info;
     CONSOLE_CURSOR_INFO curs_info;
-    long len, written;
+    long len;
     COORD pos;
     SMALL_RECT rect;
     CHAR_INFO char_info;
@@ -580,65 +591,43 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
             // ESC[#A Moves cursor up # lines
             if (es.argc == 0) es.argv[es.argc++] = 1;   // ESC[A == ESC[1A
             if (es.argc != 1) return;
-            pos.X = curs_pos.X;
-            pos.Y = curs_pos.Y - es.argv[0];
-            if (pos.Y < 0) pos.Y = 0;
-            SetConsoleCursorPosition(handle, pos);
+            console_set_pos(handle, size, curs_pos.X, curs_pos.Y - es.argv[0]);
             return;
         case 'B':
             // ESC[#B Moves cursor down # lines
             if (es.argc == 0) es.argv[es.argc++] = 1;   // ESC[B == ESC[1B
             if (es.argc != 1) return;
-            pos.X = curs_pos.X;
-            pos.Y = curs_pos.Y + es.argv[0];
-            if (pos.Y >= size.Y) pos.Y = size.Y-1;
-            SetConsoleCursorPosition(handle, pos);
+            console_set_pos(handle, size, curs_pos.X, curs_pos.Y + es.argv[0]);
             return;
         case 'C':
             // ESC[#C Moves cursor forward # spaces
             if (es.argc == 0) es.argv[es.argc++] = 1;   // ESC[C == ESC[1C
             if (es.argc != 1) return;
-            pos.X = curs_pos.X+es.argv[0];
-            if (pos.X >= size.X) pos.X = size.X-1;
-            pos.Y = curs_pos.Y;
-            SetConsoleCursorPosition(handle, pos);
+            console_set_pos(handle, size, curs_pos.X + es.argv[0], curs_pos.Y);
             return;
         case 'D':
             // ESC[#D Moves cursor back # spaces
             if (es.argc == 0) es.argv[es.argc++] = 1;   // ESC[D == ESC[1D
             if (es.argc != 1) return;
-            pos.X = curs_pos.X - es.argv[0];
-            if (pos.X < 0) pos.X = 0;
-            pos.Y = curs_pos.Y;
-            SetConsoleCursorPosition(handle, pos);
+            console_set_pos(handle, size, curs_pos.X - es.argv[0], curs_pos.Y);
             return;
         case 'E':
             // ESC[#E Moves cursor down # lines, column 1.
             if (es.argc == 0) es.argv[es.argc++] = 1;   // ESC[E == ESC[1E
             if (es.argc != 1) return;
-            pos.X = 0;
-            pos.Y = curs_pos.Y+es.argv[0];
-            if (pos.Y >= size.Y) pos.Y = size.Y-1;
-            SetConsoleCursorPosition(handle, pos);
+            console_set_pos(handle, size, 0, curs_pos.Y + es.argv[0]);
             return;
         case 'F':
             // ESC[#F Moves cursor up # lines, column 1.
             if (es.argc == 0) es.argv[es.argc++] = 1;   // ESC[F == ESC[1F
             if (es.argc != 1) return;
-            pos.X = 0;
-            pos.Y = curs_pos.Y-es.argv[0];
-            if (pos.Y < 0) pos.Y = 0;
-            SetConsoleCursorPosition(handle, pos);
+            console_set_pos(handle, size, 0, curs_pos.Y - es.argv[0]);
             return;
         case 'G':
             // ESC[#G Moves cursor column # in current row.
             if (es.argc == 0) es.argv[es.argc++] = 1;   // ESC[G == ESC[1G
             if (es.argc != 1) return;
-            pos.X = es.argv[0] - 1;
-            if (pos.X >= size.X) pos.X = size.X-1;
-            if (pos.X < 0) pos.X = 0;
-            pos.Y = curs_pos.Y;
-            SetConsoleCursorPosition(handle, pos);
+            console_set_pos(handle, size, es.argv[0] - 1, curs_pos.Y);
             return;
         case 'f':
         case 'H':
@@ -651,19 +640,12 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
                 es.argv[es.argc++] = 1;   // ESC[nG == ESC[n;1G
             }
             if (es.argc > 2) return;
-            pos.X = es.argv[1] - 1;
-            if (pos.X < 0) pos.X = 0;
-            if (pos.X >= size.X) pos.X = size.X-1;
-            pos.Y = es.argv[0] - 1;
-            if (pos.Y < 0) pos.Y = 0;
-            if (pos.Y >= size.Y) pos.Y = size.Y-1;
-            SetConsoleCursorPosition(handle, pos);
+            console_set_pos(handle, size, es.argv[1]-1, es.argv[0]-1);
             return;
         case 's':
             // ESC[s Saves cursor position for recall later
             if (es.argc != 0) return;
-            term->save_pos.X = curs_pos.X;
-            term->save_pos.Y = curs_pos.Y;
+            term->save_pos = curs_pos;
             return;
         case 'u':
             // ESC[u Return to saved cursor position
