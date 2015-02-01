@@ -389,6 +389,23 @@ void console_fill(HANDLE handle, wchar_t c, int attr, int x, int y, int len)
     FillConsoleOutputAttribute(handle, attr, len, pos, &written);
 }
 
+void console_scroll(HANDLE handle, TERM *term, wchar_t c, int attr, int left, int top, int right, int bot, int x, int y)
+{
+    SMALL_RECT rect;
+    rect.Left = left;
+    rect.Top = top;
+    rect.Right = right;
+    rect.Bottom = bot;
+    CHAR_INFO char_info;
+    char_info.Char.AsciiChar = c;
+    char_info.Attributes = attr;
+    COORD pos;
+    pos.X = x;
+    pos.Y = y;
+    ScrollConsoleScreenBuffer(handle, &rect, &(term->scroll_region), pos, &char_info);
+}
+
+
 // interpret the last escape sequence scanned by ansi_print()
 void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
 {
@@ -521,15 +538,9 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
             // ESC[#L Insert # blank lines.
             if (es.argc == 0) es.argv[es.argc++] = 1;   // ESC[L == ESC[1L
             if (es.argc != 1) return;
-            rect.Left   = 0;
-            rect.Top    = curs_pos.Y;
-            rect.Right  = size.X-1;
-            rect.Bottom = size.Y-1;
-            pos.X = 0;
-            pos.Y = curs_pos.Y + es.argv[0];
-            char_info.Char.AsciiChar = ' ';
-            char_info.Attributes = attr;
-            ScrollConsoleScreenBuffer(handle, &rect, &term->scroll_region, pos, &char_info);
+            console_scroll(handle, term, ' ', attr, 
+                        0, curs_pos.Y, size.X-1, size.Y-1, 
+                        0, curs_pos.Y+es.argv[0]);
             console_fill(handle, ' ', attr, 0, curs_pos.Y, size.X*es.argv[0]);
             return;
         case 'M':
@@ -538,15 +549,9 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
             if (es.argc != 1) return;
             if (es.argv[0] > size.Y - curs_pos.Y)
                 es.argv[0] = size.Y - curs_pos.Y;
-            rect.Left   = 0;
-            rect.Top    = curs_pos.Y+es.argv[0];
-            rect.Right  = size.X-1;
-            rect.Bottom = size.Y-1;
-            pos.X = 0;
-            pos.Y = curs_pos.Y;
-            char_info.Char.AsciiChar = ' ';
-            char_info.Attributes = attr;
-            ScrollConsoleScreenBuffer(handle, &rect, &term->scroll_region, pos, &char_info);
+            console_scroll(handle, term, ' ', attr, 
+                        0, curs_pos.Y+es.argv[0], size.X-1, size.Y-1, 
+                        0, curs_pos.Y);
             console_fill(handle, ' ', attr, 0, size.Y-es.argv[0], size.X*es.argv[0]);
             return;
         case 'P':
@@ -555,13 +560,9 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
             if (es.argc != 1) return;
             if (curs_pos.X + es.argv[0] > size.X - 1)
                 es.argv[0] = size.X - curs_pos.X;
-            rect.Left   = curs_pos.X + es.argv[0];
-            rect.Top    = curs_pos.Y;
-            rect.Right  = size.X - 1;
-            rect.Bottom = curs_pos.Y;
-            char_info.Char.AsciiChar = ' ';
-            char_info.Attributes = attr;
-            ScrollConsoleScreenBuffer(handle, &rect, &term->scroll_region, curs_pos, &char_info);
+            console_scroll(handle, term, ' ', attr, 
+                    curs_pos.X+es.argv[0], curs_pos.Y, size.X-1, curs_pos.Y, 
+                    curs_pos.X, curs_pos.Y);
             console_fill(handle, ' ', attr, size.X-es.argv[0], curs_pos.Y, es.argv[0]);
             return;
         case '@':
@@ -570,15 +571,9 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
             if (es.argc != 1) return;
             if (curs_pos.X + es.argv[0] > size.X - 1)
                 es.argv[0] = size.X - curs_pos.X;
-            rect.Left   = curs_pos.X;
-            rect.Top    = curs_pos.Y;
-            rect.Right  = size.X - 1 - es.argv[0];
-            rect.Bottom = curs_pos.Y;
-            pos.X = curs_pos.X+es.argv[0];
-            pos.Y = curs_pos.Y;
-            char_info.Char.AsciiChar = ' ';
-            char_info.Attributes = attr;
-            ScrollConsoleScreenBuffer(handle, &rect, &term->scroll_region, pos, &char_info);
+            console_scroll(handle, term, ' ', attr,
+                    curs_pos.X, curs_pos.Y, size.X-1-es.argv[0], curs_pos.Y, 
+                    curs_pos.X+es.argv[0], curs_pos.Y);
             console_fill(handle, ' ', attr, curs_pos.X, curs_pos.Y, es.argv[0]);
             return;
         case 'A':
@@ -690,27 +685,13 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
         case 'S':
             // ESC[#S scroll up # lines
             if (es.argc != 1) return;
-            rect = term->scroll_region;
-            rect.Top = es.argv[0];
-            rect.Bottom = size.Y - 1;
-            pos.X = 0;
-            pos.Y = 0;
-            char_info.Char.AsciiChar = ' ';
-            char_info.Attributes = attr;
-            ScrollConsoleScreenBuffer(handle, &rect, &term->scroll_region, pos, &char_info);
+            console_scroll(handle, term, ' ', attr, 0, es.argv[0], size.X-1, size.Y-1, 0, 0);
             console_fill(handle, ' ', attr, 0, term->scroll_region.Bottom, size.X*es.argv[0]);
             return;
         case 'T':
             // ESC[#T scroll down # lines
             if (es.argc != 1) return;
-            rect = term->scroll_region;
-            rect.Top = 0;
-            rect.Bottom = size.Y - es.argv[0];
-            pos.X = 0;
-            pos.Y = es.argv[0];
-            char_info.Char.AsciiChar = ' ';
-            char_info.Attributes = attr;
-            ScrollConsoleScreenBuffer(handle, &rect, &term->scroll_region, pos, &char_info);
+            console_scroll(handle, term, ' ', attr, 0, 0, size.X-1, size.Y-es.argv[0], 0, es.argv[0]);
             console_fill(handle, ' ', attr, 0, term->scroll_region.Top, size.X*es.argv[0]);
             return;
         case 't':
