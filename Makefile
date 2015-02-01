@@ -18,6 +18,9 @@ example-single: example-single.c launcher.c ansipipe.h
 example-gui: example-gui.cpp ansipipe.h launcher
 	g++ example-gui.cpp -o example-gui -fpermissive -mwindows
 	cp launcher.exe example-gui.com
+
+clean:
+	rm *.exe *.com
 else
 launcher: launcher.c
 	gcc launcher.c -o launcher
@@ -33,5 +36,8 @@ example-single: example-single.c launcher.c ansipipe.h
 
 example-gui: example-gui.cpp ansipipe.h launcher
 	touch example-gui
+
+clean:
+	rm launcher example-c example-cpp example-single example-gui
 endif
 
