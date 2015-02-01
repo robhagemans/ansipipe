@@ -302,13 +302,45 @@ typedef struct {
     int presize;
 } PBUF;
 
+
 //  write buffer to console
 void pbuf_flush(PBUF *pbuf)
 {
     if (pbuf->count <= 0) return;
     long written;
-    WriteConsoleW(pbuf->handle, pbuf->buf, pbuf->count, &written, NULL);
+//    WriteConsoleW(pbuf->handle, pbuf->buf, pbuf->count, &written, NULL);
     pbuf->count = 0;
+}
+
+
+COORD onebyone = { 1, 1 };
+COORD origin = { 0, 0 };
+
+wchar_t hold = 0;
+
+void console_put_char(HANDLE handle, wchar_t *s)
+{
+    // TODO: we need to get hold of a TERM pointer, so all of this is already there
+    CONSOLE_SCREEN_BUFFER_INFO info;
+    GetConsoleScreenBufferInfo(handle, &info);
+    // do not advance cursor if we're on the last position of the screen buffer, to avoid unwanted scrolling.
+    if (!hold & info.dwCursorPosition.Y == info.dwSize.Y-1 && info.dwCursorPosition.X == info.dwSize.X-1) {
+        SMALL_RECT dest = { info.dwCursorPosition.X, info.dwCursorPosition.Y, info.dwCursorPosition.X, info.dwCursorPosition.Y };
+        CHAR_INFO ch;
+        ch.Char.UnicodeChar = s[0];
+        ch.Attributes = info.wAttributes;
+        WriteConsoleOutput(handle, &ch, onebyone, origin, &dest);
+        hold = s[0];
+    }
+    else {
+        long written;
+        if (hold) {
+            // write the held character in the normal way, so cursor advances etc.
+            WriteConsole(handle, &hold, 1, &written, NULL);
+            hold = 0;
+        }
+        WriteConsole(handle, s, 1, &written, NULL);
+    }    
 }
 
 // convert prebuffer UTF-8 sequence into one wide char for buffer
@@ -322,6 +354,7 @@ void pbuf_preflush(PBUF *pbuf)
     pbuf->precount = 0;
     if (flags.onlcr && wide_buffer[0] == L'\r') 
         pbuf->buf[pbuf->count++] = L'\n';
+    console_put_char(pbuf->handle, wide_buffer);
 }
 
 //  add a character in the buffer and flush the buffer if it is full
@@ -409,7 +442,21 @@ void console_scroll(TERM *term, int left, int top, int right, int bot, int x, in
     COORD pos;
     pos.X = x;
     pos.Y = y;
-    ScrollConsoleScreenBuffer(term->handle, &rect, &(term->scroll_region), pos, &char_info);
+    if (term->scroll_region.Bottom == term->height-2 && bot >= term->height-2 && y < top) {
+        // workaround: in this particular case, Windows doesn't seem to respect the clip area.
+        // first scroll everything up
+        SMALL_RECT temp_scr = term->scroll_region;
+        temp_scr.Bottom = term->height-1;
+        rect.Bottom = term->height-1;
+        ScrollConsoleScreenBuffer(term->handle, &rect, &temp_scr, pos, &char_info);
+        // and then scroll the bottom back down
+        pos.Y = term->height-1;
+        rect.Top = term->height-1 - (top-y);
+        rect.Bottom = rect.Top;
+        ScrollConsoleScreenBuffer(term->handle, &rect, &temp_scr, pos, &char_info);
+    }
+    else
+        ScrollConsoleScreenBuffer(term->handle, &rect, &(term->scroll_region), pos, &char_info);
 }
 
 void console_set_pos(TERM *term, int x, int y)
@@ -423,6 +470,8 @@ void console_set_pos(TERM *term, int x, int y)
     pos.Y = y;
     SetConsoleCursorPosition(term->handle, pos);
 }
+
+
 
 // interpret the last escape sequence scanned by ansi_print()
 void ansi_output(TERM *term, SEQUENCE es)
