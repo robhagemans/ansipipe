@@ -31,12 +31,12 @@ int ansipipe_launcher(int argc, char *argv[], long *exit_code) { return 0; };
 int ansipipe_init()
 {
     // construct named pipe names
-    char name_out[NAME_LEN];
-    char name_in[NAME_LEN];
-    char name_err[NAME_LEN];
-    sprintf(name_out, "\\\\.\\pipe\\%dcout", GetCurrentProcessId());
-    sprintf(name_in, "\\\\.\\pipe\\%dcin", GetCurrentProcessId());
-    sprintf(name_err, "\\\\.\\pipe\\%dcerr", GetCurrentProcessId());
+    wchar_t name_out[NAME_LEN];
+    wchar_t name_in[NAME_LEN];
+    wchar_t name_err[NAME_LEN];
+    swprintf(name_out, L"\\\\.\\pipe\\%dcout", GetCurrentProcessId());
+    swprintf(name_in, L"\\\\.\\pipe\\%dcin", GetCurrentProcessId());
+    swprintf(name_err, L"\\\\.\\pipe\\%dcerr", GetCurrentProcessId());
 
     // keep a copy of the existing stdio streams in case we fail
     int old_out = _dup(_fileno(stdout));
@@ -45,9 +45,9 @@ int ansipipe_init()
     
     // try to attach named pipes to stdin/stdout/stderr
     int rc = 0;
-    rc = (int) freopen(name_out, "a", stdout);
-    rc = rc && (int) freopen(name_in, "r", stdin);
-    rc = rc && (int) freopen(name_err, "a", stderr);
+    rc = (int) _wfreopen(name_out, L"a", stdout);
+    rc = rc && (int) _wfreopen(name_in, L"r", stdin);
+    rc = rc && (int) _wfreopen(name_err, L"a", stderr);
 
     if (rc) {
         // unix app would expect line buffering _IOLBF but WIN32 doesn't have it
