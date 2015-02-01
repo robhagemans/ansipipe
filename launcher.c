@@ -149,6 +149,7 @@ int main() {}
 #include <process.h>
 #include <string.h>
 #include <wctype.h>
+#include "ansipipe.h"
 
 // define bool, for C < C99
 typedef enum { false, true } bool;
