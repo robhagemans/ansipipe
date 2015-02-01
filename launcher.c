@@ -376,20 +376,27 @@ typedef struct {
     SMALL_RECT scroll_region;
     // saved cursor position
     COORD save_pos;
+    // terminal attributes
+    int col;
+    int row;
+    int width;
+    int height;
+    int attr;
+    HANDLE handle;
 } TERM;
 
 
-void console_fill(HANDLE handle, wchar_t c, int attr, int x, int y, int len)
+void console_fill(TERM *term, int x, int y, int len)
 {
     long written;
     COORD pos;
     pos.X = x;
     pos.Y = y;
-    FillConsoleOutputCharacter(handle, c, len, pos, &written);
-    FillConsoleOutputAttribute(handle, attr, len, pos, &written);
+    FillConsoleOutputCharacter(term->handle, ' ', len, pos, &written);
+    FillConsoleOutputAttribute(term->handle, term->attr, len, pos, &written);
 }
 
-void console_scroll(HANDLE handle, TERM *term, wchar_t c, int attr, int left, int top, int right, int bot, int x, int y)
+void console_scroll(TERM *term, int left, int top, int right, int bot, int x, int y)
 {
     SMALL_RECT rect;
     rect.Left = left;
@@ -397,36 +404,36 @@ void console_scroll(HANDLE handle, TERM *term, wchar_t c, int attr, int left, in
     rect.Right = right;
     rect.Bottom = bot;
     CHAR_INFO char_info;
-    char_info.Char.AsciiChar = c;
-    char_info.Attributes = attr;
+    char_info.Char.AsciiChar = ' ';
+    char_info.Attributes = term->attr;
     COORD pos;
     pos.X = x;
     pos.Y = y;
-    ScrollConsoleScreenBuffer(handle, &rect, &(term->scroll_region), pos, &char_info);
+    ScrollConsoleScreenBuffer(term->handle, &rect, &(term->scroll_region), pos, &char_info);
 }
 
-void console_set_pos(HANDLE handle, COORD size, int x, int y)
+void console_set_pos(TERM *term, int x, int y)
 {
     if (y < 0) y = 0;
-    else if (y >= size.Y) y = size.Y - 1;
+    else if (y >= term->height) y = term->height - 1;
     if (x < 0) x = 0;
-    else if (x >= size.X) x = size.X - 1;
+    else if (x >= term->width) x = term->width - 1;
     COORD pos;
     pos.X = x;
     pos.Y = y;
-    SetConsoleCursorPosition(handle, pos);
+    SetConsoleCursorPosition(term->handle, pos);
 }
 
 // interpret the last escape sequence scanned by ansi_print()
-void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
+void ansi_output(TERM *term, SEQUENCE es)
 {
     if (es.prefix == '[') {
         if (es.prefix2 == '?' && (es.suffix == 'h' || es.suffix == 'l')) {
             if (es.argc == 1 && es.argv[0] == 25) {
                 CONSOLE_CURSOR_INFO curs_info;
-                GetConsoleCursorInfo(handle, &curs_info);
+                GetConsoleCursorInfo(term->handle, &curs_info);
                 curs_info.bVisible = (es.suffix == 'h');
-                SetConsoleCursorInfo(handle, &curs_info);
+                SetConsoleCursorInfo(term->handle, &curs_info);
                 return;
             }
         }
@@ -434,10 +441,12 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
         if (es.prefix2 != 0) return;
         // retrieve current positions and sizes
         CONSOLE_SCREEN_BUFFER_INFO info;
-        GetConsoleScreenBufferInfo(handle, &info);
-        COORD curs_pos = info.dwCursorPosition;
-        COORD size = info.dwSize;
-        int attr = info.wAttributes;
+        GetConsoleScreenBufferInfo(term->handle, &info);
+        term->col = info.dwCursorPosition.X;
+        term->row = info.dwCursorPosition.Y;
+        term->width = info.dwSize.X;
+        term->height = info.dwSize.Y;
+        term->attr = info.wAttributes;
         
         switch (es.suffix) {
         case 'm':
@@ -496,7 +505,7 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
                 new_attr |= FOREGROUND_INTENSITY;
             if (term->underline) 
                 new_attr |= BACKGROUND_INTENSITY;
-            SetConsoleTextAttribute(handle, new_attr);
+            SetConsoleTextAttribute(term->handle, new_attr);
             return;
         case 'J':
             if (es.argc == 0) es.argv[es.argc++] = 0;   // ESC[J == ESC[0J
@@ -504,18 +513,17 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
             switch (es.argv[0]) {
             case 0:              
                 // ESC[0J erase from cursor to end of display
-                console_fill(handle, ' ', attr, curs_pos.X, curs_pos.Y, 
-                        (size.Y-curs_pos.Y-1)*size.X + size.X - curs_pos.X-1);
+                console_fill(term, term->col, term->row, 
+                        (term->height-term->row-1)*term->width + term->width-term->col-1);
                 return;
             case 1:              
                 // ESC[1J erase from start to cursor.
-                console_fill(handle, ' ', attr, 0, 0, 
-                                            curs_pos.Y*size.X + curs_pos.X + 1);
+                console_fill(term, 0, 0, term->row*term->width + term->col + 1);
                 return;
             case 2:              
                 // ESC[2J Clear screen and home cursor
-                console_fill(handle, ' ', attr, 0, 0, size.X * size.Y);
-                console_set_pos(handle, size, 0, 0);
+                console_fill(term, 0, 0, term->width * term->height);
+                console_set_pos(term, 0, 0);
                 return;
             default :
                 return;
@@ -526,16 +534,16 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
             switch (es.argv[0]) {
             case 0:              
                 // ESC[0K Clear to end of line
-                console_fill(handle, ' ', attr, curs_pos.X, curs_pos.Y, 
-                                        info.srWindow.Right - curs_pos.X + 1);
+                console_fill(term, term->col, term->row, 
+                                        info.srWindow.Right - term->col + 1);
                 return;
             case 1:              
                 // ESC[1K Clear from start of line to cursor
-                console_fill(handle, ' ', attr, 0, curs_pos.Y, curs_pos.X + 1);
+                console_fill(term, 0, term->row, term->col + 1);
                 return;
             case 2:              
                 // ESC[2K Clear whole line.
-                console_fill(handle, ' ', attr, 0, curs_pos.Y, size.X);
+                console_fill(term, 0, term->row, term->width);
                 return;
             default :
                 return;
@@ -544,85 +552,84 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
             // ESC[#L Insert # blank lines.
             if (es.argc == 0) es.argv[es.argc++] = 1;   // ESC[L == ESC[1L
             if (es.argc != 1) return;
-            console_scroll(handle, term, ' ', attr, 
-                        0, curs_pos.Y, size.X-1, size.Y-1, 
-                        0, curs_pos.Y+es.argv[0]);
-            console_fill(handle, ' ', attr, 0, curs_pos.Y, size.X*es.argv[0]);
+            console_scroll(term, 0, term->row, term->width-1, term->height-1, 
+                                 0, term->row+es.argv[0]);
+            console_fill(term, 0, term->row, term->width*es.argv[0]);
             return;
         case 'M':
             // ESC[#M Delete # line.
             if (es.argc == 0) es.argv[es.argc++] = 1;   // ESC[M == ESC[1M
             if (es.argc != 1) return;
-            if (es.argv[0] > size.Y - curs_pos.Y)
-                es.argv[0] = size.Y - curs_pos.Y;
-            console_scroll(handle, term, ' ', attr, 
-                        0, curs_pos.Y+es.argv[0], size.X-1, size.Y-1, 
-                        0, curs_pos.Y);
-            console_fill(handle, ' ', attr, 0, size.Y-es.argv[0], size.X*es.argv[0]);
+            if (es.argv[0] > term->height - term->row)
+                es.argv[0] = term->height - term->row;
+            console_scroll(term,  
+                            0, term->row+es.argv[0], term->width-1, term->height-1, 
+                            0, term->row);
+            console_fill(term, 0, term->height-es.argv[0], term->width*es.argv[0]);
             return;
         case 'P':
             // ESC[#P Delete # characters.
             if (es.argc == 0) es.argv[es.argc++] = 1;   // ESC[P == ESC[1P
             if (es.argc != 1) return;
-            if (curs_pos.X + es.argv[0] > size.X - 1)
-                es.argv[0] = size.X - curs_pos.X;
-            console_scroll(handle, term, ' ', attr, 
-                    curs_pos.X+es.argv[0], curs_pos.Y, size.X-1, curs_pos.Y, 
-                    curs_pos.X, curs_pos.Y);
-            console_fill(handle, ' ', attr, size.X-es.argv[0], curs_pos.Y, es.argv[0]);
+            if (term->col + es.argv[0] > term->width - 1)
+                es.argv[0] = term->width - term->col;
+            console_scroll(term,
+                    term->col+es.argv[0], term->row, term->width-1, term->row, 
+                    term->col, term->row);
+            console_fill(term, term->width-es.argv[0], term->row, es.argv[0]);
             return;
         case '@':
             // ESC[#@ Insert # blank characters.
             if (es.argc == 0) es.argv[es.argc++] = 1;   // ESC[@ == ESC[1@
             if (es.argc != 1) return;
-            if (curs_pos.X + es.argv[0] > size.X - 1)
-                es.argv[0] = size.X - curs_pos.X;
-            console_scroll(handle, term, ' ', attr,
-                    curs_pos.X, curs_pos.Y, size.X-1-es.argv[0], curs_pos.Y, 
-                    curs_pos.X+es.argv[0], curs_pos.Y);
-            console_fill(handle, ' ', attr, curs_pos.X, curs_pos.Y, es.argv[0]);
+            if (term->col + es.argv[0] > term->width - 1)
+                es.argv[0] = term->width - term->col;
+            console_scroll(term,
+                    term->col, term->row, term->width-1-es.argv[0], term->row, 
+                    term->col+es.argv[0], term->row);
+            console_fill(term, term->col, term->row, es.argv[0]);
             return;
         case 'A':
             // ESC[#A Moves cursor up # lines
             if (es.argc == 0) es.argv[es.argc++] = 1;   // ESC[A == ESC[1A
             if (es.argc != 1) return;
-            console_set_pos(handle, size, curs_pos.X, curs_pos.Y - es.argv[0]);
+            console_set_pos(term, term->col, term->row - es.argv[0]);
             return;
         case 'B':
             // ESC[#B Moves cursor down # lines
             if (es.argc == 0) es.argv[es.argc++] = 1;   // ESC[B == ESC[1B
             if (es.argc != 1) return;
-            console_set_pos(handle, size, curs_pos.X, curs_pos.Y + es.argv[0]);
+            console_set_pos(term, term->col, term->row + es.argv[0]);
             return;
         case 'C':
             // ESC[#C Moves cursor forward # spaces
             if (es.argc == 0) es.argv[es.argc++] = 1;   // ESC[C == ESC[1C
             if (es.argc != 1) return;
-            console_set_pos(handle, size, curs_pos.X + es.argv[0], curs_pos.Y);
+            console_set_pos(term, term->col + es.argv[0], term->row);
             return;
         case 'D':
             // ESC[#D Moves cursor back # spaces
             if (es.argc == 0) es.argv[es.argc++] = 1;   // ESC[D == ESC[1D
             if (es.argc != 1) return;
-            console_set_pos(handle, size, curs_pos.X - es.argv[0], curs_pos.Y);
+            console_set_pos(term, term->col - es.argv[0], term->row);
             return;
         case 'E':
             // ESC[#E Moves cursor down # lines, column 1.
             if (es.argc == 0) es.argv[es.argc++] = 1;   // ESC[E == ESC[1E
             if (es.argc != 1) return;
-            console_set_pos(handle, size, 0, curs_pos.Y + es.argv[0]);
+            console_set_pos(term, 0, term->row + es.argv[0]);
             return;
         case 'F':
             // ESC[#F Moves cursor up # lines, column 1.
             if (es.argc == 0) es.argv[es.argc++] = 1;   // ESC[F == ESC[1F
             if (es.argc != 1) return;
-            console_set_pos(handle, size, 0, curs_pos.Y - es.argv[0]);
+            console_set_pos(term, 0, term->row - es.argv[0]);
             return;
         case 'G':
             // ESC[#G Moves cursor column # in current row.
             if (es.argc == 0) es.argv[es.argc++] = 1;   // ESC[G == ESC[1G
             if (es.argc != 1) return;
-            console_set_pos(handle, size, es.argv[0] - 1, curs_pos.Y);
+            console_set_pos(term, es.argv[0] - 1, term->row);
             return;
         case 'f':
         case 'H':
@@ -635,24 +642,25 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
                 es.argv[es.argc++] = 1;   // ESC[nG == ESC[n;1G
             }
             if (es.argc > 2) return;
-            console_set_pos(handle, size, es.argv[1]-1, es.argv[0]-1);
+            console_set_pos(term, es.argv[1]-1, es.argv[0]-1);
             return;
         case 's':
             // ESC[s Saves cursor position for recall later
             if (es.argc != 0) return;
-            term->save_pos = curs_pos;
+            term->save_pos.X = term->col;
+            term->save_pos.Y = term->row;
             return;
         case 'u':
             // ESC[u Return to saved cursor position
             if (es.argc != 0) return;
-            SetConsoleCursorPosition(handle, term->save_pos);
+            SetConsoleCursorPosition(term->handle, term->save_pos);
             return;
         case 'r':
             // ESC[r set scroll region
             if (es.argc == 0) {
                 // ESC[r == ESC[top;botr
                 term->scroll_region.Top    = 0;
-                term->scroll_region.Bottom = size.Y - 1;
+                term->scroll_region.Bottom = term->height - 1;
             }
             else if (es.argc == 2) {
                 term->scroll_region.Top    = es.argv[0] - 1;
@@ -662,14 +670,14 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
         case 'S':
             // ESC[#S scroll up # lines
             if (es.argc != 1) return;
-            console_scroll(handle, term, ' ', attr, 0, es.argv[0], size.X-1, size.Y-1, 0, 0);
-            console_fill(handle, ' ', attr, 0, term->scroll_region.Bottom, size.X*es.argv[0]);
+            console_scroll(term, 0, es.argv[0], term->width-1, term->height-1, 0, 0);
+            console_fill(term, 0, term->scroll_region.Bottom, term->width*es.argv[0]);
             return;
         case 'T':
             // ESC[#T scroll down # lines
             if (es.argc != 1) return;
-            console_scroll(handle, term, ' ', attr, 0, 0, size.X-1, size.Y-es.argv[0], 0, es.argv[0]);
-            console_fill(handle, ' ', attr, 0, term->scroll_region.Top, size.X*es.argv[0]);
+            console_scroll(term, 0, 0, term->width-1, term->height-es.argv[0]-1, 0, es.argv[0]);
+            console_fill(term, 0, term->scroll_region.Top, term->width*es.argv[0]);
             return;
         case 't':
             //ESC[8;#;#;t resize terminal to # rows, # cols
@@ -683,12 +691,12 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
             new_screen.Left = 0;
             new_screen.Bottom = es.argv[1] - 1;
             new_screen.Right = es.argv[2] - 1;
-            SetConsoleScreenBufferSize(handle, new_size);
-            SetConsoleWindowInfo(handle, true, &new_screen);
+            SetConsoleScreenBufferSize(term->handle, new_size);
+            SetConsoleWindowInfo(term->handle, true, &new_screen);
             // do it twice, because one call can only make the console bigger 
             // and the other call can only make it smaller. plus I am lazy.
-            SetConsoleScreenBufferSize(handle, new_size);
-            SetConsoleWindowInfo(handle, true, &new_screen);
+            SetConsoleScreenBufferSize(term->handle, new_size);
+            SetConsoleWindowInfo(term->handle, true, &new_screen);
             return;
         }
     }
@@ -866,6 +874,7 @@ void parser_init(PARSER *p, HANDLE handle)
     p->handle = handle;
     p->pbuf.handle = handle;
     p->state = 1;
+    p->term.handle = handle;
     p->term.foreground = foreground_default;
     p->term.background = background_default;
     // initialise scroll region to full screen
@@ -931,7 +940,7 @@ void parser_print(PARSER *p, char *s, int buflen)
             else {
                 p->es.argc = 0;
                 p->es.suffix = *s;
-                ansi_output(p->handle, &(p->term), p->es);
+                ansi_output(&(p->term), p->es);
                 p->state = 1;
             }
             break;
@@ -946,7 +955,7 @@ void parser_print(PARSER *p, char *s, int buflen)
             else {
                 if (p->es.argc < MAX_ARG-1) p->es.argc++;
                 p->es.suffix = *s;
-                ansi_output(p->handle, &(p->term), p->es);
+                ansi_output(&(p->term), p->es);
                 p->state = 1;
             }
             break;
@@ -963,7 +972,7 @@ void parser_print(PARSER *p, char *s, int buflen)
             }
             else {
                 p->es.suffix = *s;
-                ansi_output(p->handle, &(p->term), p->es);
+                ansi_output(&(p->term), p->es);
                 p->state = 1;
             }
             break;
@@ -975,7 +984,7 @@ void parser_print(PARSER *p, char *s, int buflen)
             else {
                 p->es.args[p->es.argv[1]] = 0;
                 p->es.suffix = *s;
-                ansi_output(p->handle, &(p->term), p->es);
+                ansi_output(&(p->term), p->es);
                 p->state = 1;
             }
         }
