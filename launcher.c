@@ -166,11 +166,6 @@ HANDLE handle_cout;
 HANDLE handle_cin;
 HANDLE handle_cerr;
 
-// handles to named pipes
-HANDLE cout_pipe;
-HANDLE cin_pipe;
-HANDLE cerr_pipe;
-
 // termios-style flags
 typedef struct {
     int echo;
@@ -178,10 +173,11 @@ typedef struct {
     int onlcr;
 } FLAGS;
 
-FLAGS flags;
+FLAGS flags = { true, true, false };
+
 
 // ============================================================================
-// Colour constants
+// colour constants
 // ============================================================================
 
 #define FOREGROUND_BLACK 0
@@ -234,13 +230,16 @@ int conversion[16] = {0, 4, 2, 6, 1, 5, 3, 7, 8, 12, 10, 14, 9, 13, 11, 15};
 int foreground_default = FOREGROUND_WHITE;
 int background_default = BACKGROUND_BLACK;
 
+
 // ============================================================================
-// Print Buffer
+// print buffer
 // ============================================================================
 
+// max length of UTF-16 buffer
 #define PBUF_SIZE 256
 // max length of utf-8 sequence is 4 bytes
 #define PBUF_PREBUF_SIZE 8
+
 typedef struct {
     HANDLE handle;
     int count;
@@ -1038,7 +1037,6 @@ void parser_print(PARSER *p, char *s, int buflen)
 }
 
 
-
 // ============================================================================
 // named pipes 
 // ============================================================================
@@ -1047,38 +1045,31 @@ void parser_print(PARSER *p, char *s, int buflen)
 #define PIPES_TIMEOUT 1000
 #define PIPES_BUFLEN 1024
 
+// handles to named pipes
+HANDLE cout_pipe;
+HANDLE cin_pipe;
+HANDLE cerr_pipe;
 
 // Create named pipes for stdin, stdout and stderr
-// returns 0 on success
 int pipes_create(long pid) 
 {
     wchar_t name[ANSIPIPE_NAME_LEN];
     swprintf(name, ANSIPIPE_POUT_FMT, pid);
-    if (INVALID_HANDLE_VALUE == (cout_pipe = CreateNamedPipe(
-                name, PIPE_ACCESS_INBOUND, PIPE_TYPE_BYTE | PIPE_READMODE_BYTE,
-                1, PIPES_BUFLEN, PIPES_BUFLEN, PIPES_TIMEOUT, NULL)))
-        return 1;
+    cout_pipe = CreateNamedPipe(name, PIPE_ACCESS_INBOUND, 
+                        PIPE_TYPE_BYTE | PIPE_READMODE_BYTE, 1, PIPES_BUFLEN, 
+                        PIPES_BUFLEN, PIPES_TIMEOUT, NULL);
+    if (INVALID_HANDLE_VALUE == cout_pipe) return 1;
     swprintf(name, ANSIPIPE_PIN_FMT, pid);
-    if (INVALID_HANDLE_VALUE == (cin_pipe = CreateNamedPipe(
-                name, PIPE_ACCESS_OUTBOUND, PIPE_TYPE_BYTE | PIPE_READMODE_BYTE,
-                1, PIPES_BUFLEN, PIPES_BUFLEN, PIPES_TIMEOUT, NULL)))
-        return 1;
+    cin_pipe = CreateNamedPipe(name, PIPE_ACCESS_OUTBOUND, 
+                        PIPE_TYPE_BYTE | PIPE_READMODE_BYTE, 1, PIPES_BUFLEN, 
+                        PIPES_BUFLEN, PIPES_TIMEOUT, NULL);
+    if (INVALID_HANDLE_VALUE == cin_pipe) return 1;
     swprintf(name, ANSIPIPE_PERR_FMT, pid);
-    if (INVALID_HANDLE_VALUE == (cerr_pipe = CreateNamedPipe(
-                name, PIPE_ACCESS_INBOUND, PIPE_TYPE_BYTE | PIPE_READMODE_BYTE,
-                1, PIPES_BUFLEN, PIPES_BUFLEN, PIPES_TIMEOUT, NULL)))
-        return 1;
+    cerr_pipe = CreateNamedPipe(name, PIPE_ACCESS_INBOUND, 
+                        PIPE_TYPE_BYTE | PIPE_READMODE_BYTE, 1, PIPES_BUFLEN, 
+                        PIPES_BUFLEN, PIPES_TIMEOUT, NULL);
+    if (INVALID_HANDLE_VALUE == cerr_pipe) return 1;
     return 0;
-}
-
-// Close all named pipes
-void pipes_close() 
-{
-    // Give pipes a chance to flush
-    Sleep(100);
-    CloseHandle(cout_pipe);
-    CloseHandle(cerr_pipe);
-    CloseHandle(cin_pipe);
 }
 
 // Thread function that handles incoming bytestreams to be output on stdout
@@ -1125,14 +1116,59 @@ void pipes_cin_thread(void *dummy)
     }
 }
 
-// Start handler pipe handler threads
-void pipes_start_threads()
+int pipes_start(PROCESS_INFORMATION pinfo)
 {
+    // spawn child process in suspended mode and create pipes
+    if (pipes_create(pinfo.dwProcessId) != 0) {
+        fprintf(stderr, "ERROR: Could not create named pipes.\n");
+        return 1;
+    }
+
+    // set mode to accept keyboard event only
+    SetConsoleMode(handle_cin, 0);
+
+    // start the pipe threads
     _beginthread(pipes_cin_thread, 0, NULL);
     _beginthread(pipes_cout_thread, 0, NULL);
     _beginthread(pipes_cerr_thread, 0, NULL);
+    return 0;
 }
 
+void pipes_close()    
+{
+    // Give pipes a chance to flush
+    Sleep(100);
+    CloseHandle(cout_pipe);
+    CloseHandle(cerr_pipe);
+    CloseHandle(cin_pipe);
+}
+
+
+// ============================================================================
+// child process 
+// ============================================================================
+
+int proc_spawn(wchar_t *cmd_line, PROCESS_INFORMATION *pinfo)
+{
+    STARTUPINFO sinfo;
+    memset(&sinfo, 0, sizeof(STARTUPINFO));
+    sinfo.cb = sizeof(STARTUPINFO);
+    if (!CreateProcess(NULL, cmd_line, NULL, NULL, FALSE, 
+                       CREATE_SUSPENDED, NULL, NULL, &sinfo, pinfo)) {
+        fprintf(stderr, "ERROR: Could not create process %S", cmd_line);
+        return 1;
+    }
+    return 0;
+}
+
+void proc_join(PROCESS_INFORMATION pinfo, long *exit_code)
+{
+    // resume child process
+    ResumeThread(pinfo.hThread);
+    // wait for child process to exit and close pipes
+    WaitForSingleObject(pinfo.hProcess, INFINITE);
+    GetExitCodeProcess(pinfo.hProcess, exit_code);
+}
 
 
 // ============================================================================
@@ -1209,82 +1245,39 @@ int build_command_line(int argc, char *argv[], wchar_t *buffer, long buflen)
 int ansipipe_launcher(int argc, char *argv[], long *exit_code)
 {
     /* if this is a self-call, yield control to application main */
-
     #ifdef ANSIPIPE_SINGLE
     if (!strcmp(argv[argc-1], STR_SELFCALL))
         return 0;
     #endif    
     
-    /* retrieve stdio handles */
-
+    /* initialise globals */
+    // stdio handles
     handle_cout = GetStdHandle(STD_OUTPUT_HANDLE);
     handle_cin = GetStdHandle(STD_INPUT_HANDLE);
     handle_cerr = GetStdHandle(STD_ERROR_HANDLE);
 
-    /* save initial console attributes */
-
-    CONSOLE_SCREEN_BUFFER_INFO info;
-    GetConsoleScreenBufferInfo(handle_cout, &info);
-
-    flags.echo = true;
-    flags.icrnl = true;
-    flags.onlcr = false;
-    
-    /* build command line */
-
-    wchar_t cmd_line[ARG_BUFLEN];
-    if (build_command_line(argc, argv, cmd_line, ARG_BUFLEN) != 0) 
-        return 1;
-
-    /* start pipes */
-    
-    // spawn child process in suspended mode and create pipes
-    PROCESS_INFORMATION pinfo;
-    STARTUPINFO sinfo;
-    memset(&sinfo, 0, sizeof(STARTUPINFO));
-    sinfo.cb = sizeof(STARTUPINFO);
-    if (!CreateProcess(NULL, cmd_line, NULL, NULL, FALSE, 
-                       CREATE_SUSPENDED, NULL, NULL, &sinfo, &pinfo)) {
-        fprintf(stderr, "ERROR: Could not create process %S", cmd_line);
-        return 1;
-    }
-    if (pipes_create(pinfo.dwProcessId) != 0) {
-        fprintf(stderr, "ERROR: Could not create named pipes.\n");
-        return 1;
-    }
-
-    // save console input mode to restore at exit
+    /* save initial console state */
+    CONSOLE_SCREEN_BUFFER_INFO save_console;
     long save_mode;
+    GetConsoleScreenBufferInfo(handle_cout, &save_console);
     GetConsoleMode(handle_cin, &save_mode);
-
-    // set mode to accept keyboard event only
-    long mode = 0; //ENABLE_WINDOW_INPUT
-    SetConsoleMode(handle_cin, mode);
     
-    // start the pipe threads and resume child process
-    pipes_start_threads();
-    ResumeThread(pinfo.hThread);
+    /* open, run, and close */
+    wchar_t cmd_line[ARG_BUFLEN];
+    PROCESS_INFORMATION pinfo;    
+    if (build_command_line(argc, argv, cmd_line, ARG_BUFLEN) == 0 &&
+                proc_spawn(cmd_line, &pinfo) == 0 && 
+                pipes_start(pinfo) == 0) {
+        proc_join(pinfo, exit_code);
+        pipes_close();
+    }
 
-    /* wait for process */
-
-    // wait for child process to exit and close pipes
-    WaitForSingleObject(pinfo.hProcess, INFINITE);
-    GetExitCodeProcess(pinfo.hProcess, exit_code);
-
-    /* close pipes */
-    
-    pipes_close();
-    // restore console mode
+    /* restore console state */
     SetConsoleMode(handle_cin, save_mode);
-
-    /* restore console */
+    SetConsoleTextAttribute(handle_cout, save_console.wAttributes);
+    SetConsoleScreenBufferSize(handle_cout, save_console.dwSize);
     
-    // restore console attributes
-    SetConsoleTextAttribute(handle_cout, info.wAttributes);
-    // restore screen buffer size
-    SetConsoleScreenBufferSize(handle_cout, info.dwSize);
-
-    // signal to caller that we've run as launcher
+    /* exit and signal to caller that we've run as launcher */
     return 1;
 }
 
