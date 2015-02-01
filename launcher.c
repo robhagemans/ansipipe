@@ -382,7 +382,6 @@ typedef struct {
 void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
 {
     int i;
-    int attr;
     CONSOLE_SCREEN_BUFFER_INFO info;
     CONSOLE_CURSOR_INFO curs_info;
     long len, written;
@@ -403,6 +402,9 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
         if (es.prefix2 != 0) return;
         // retrieve current positions and sizes
         GetConsoleScreenBufferInfo(handle, &info);
+        COORD curs_pos = info.dwCursorPosition;
+        COORD size = info.dwSize;
+        int attr = info.wAttributes;
         
         switch (es.suffix) {
         case 'm':
@@ -451,15 +453,16 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
                 else if ((30 <= es.argv[i]) && (es.argv[i] <= 37)) 
                     term->foreground = es.argv[i] - 30;
             }
+            int new_attr;
             if (term->rvideo) 
-                attr = foregroundcolor[term->background] | backgroundcolor[term->foreground];
+                new_attr = foregroundcolor[term->background] | backgroundcolor[term->foreground];
             else 
-                attr = foregroundcolor[term->foreground] | backgroundcolor[term->background];
+                new_attr = foregroundcolor[term->foreground] | backgroundcolor[term->background];
             if (term->bold) 
-                attr |= FOREGROUND_INTENSITY;
+                new_attr |= FOREGROUND_INTENSITY;
             if (term->underline) 
-                attr |= BACKGROUND_INTENSITY;
-            SetConsoleTextAttribute(handle, attr);
+                new_attr |= BACKGROUND_INTENSITY;
+            SetConsoleTextAttribute(handle, new_attr);
             return;
         case 'J':
             if (es.argc == 0) es.argv[es.argc++] = 0;   // ESC[J == ESC[0J
@@ -467,32 +470,25 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
             switch (es.argv[0]) {
             case 0:              
                 // ESC[0J erase from cursor to end of display
-                len = (info.dwSize.Y-info.dwCursorPosition.Y-1)
-                      *info.dwSize.X+info.dwSize.X-info.dwCursorPosition.X-1;
-                FillConsoleOutputCharacter(handle, ' ', len,
-                                    info.dwCursorPosition, &written);
-                FillConsoleOutputAttribute(handle, info.wAttributes, len,
-                                    info.dwCursorPosition, &written);
+                len = (size.Y-curs_pos.Y-1) * size.X + size.X - curs_pos.X - 1;
+                FillConsoleOutputCharacter(handle, ' ', len, curs_pos, &written);
+                FillConsoleOutputAttribute(handle, attr, len, curs_pos, &written);
                 return;
             case 1:              
                 // ESC[1J erase from start to cursor.
                 pos.X = 0;
                 pos.Y = 0;
-                len = info.dwCursorPosition.Y*info.dwSize.X+info.dwCursorPosition.X+1;
-                FillConsoleOutputCharacter(handle, ' ', len, pos, 
-                                                        &written);
-                FillConsoleOutputAttribute(handle, info.wAttributes, len, pos, 
-                                                        &written);
+                len = curs_pos.Y * size.X + curs_pos.X + 1;
+                FillConsoleOutputCharacter(handle, ' ', len, pos, &written);
+                FillConsoleOutputAttribute(handle, attr, len, pos, &written);
                 return;
             case 2:              
                 // ESC[2J Clear screen and home cursor
                 pos.X = 0;
                 pos.Y = 0;
-                len = info.dwSize.X*info.dwSize.Y;
-                FillConsoleOutputCharacter(handle, ' ', len, pos,
-                                                        &written);
-                FillConsoleOutputAttribute(handle, info.wAttributes, len, pos,
-                                                        &written);
+                len = size.X * size.Y;
+                FillConsoleOutputCharacter(handle, ' ', len, pos, &written);
+                FillConsoleOutputAttribute(handle, attr, len, pos, &written);
                 SetConsoleCursorPosition(handle, pos);
                 return;
             default :
@@ -504,30 +500,23 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
             switch (es.argv[0]) {
             case 0:              
                 // ESC[0K Clear to end of line
-                len = info.srWindow.Right-info.dwCursorPosition.X+1;
-                FillConsoleOutputCharacter(handle, ' ', len, 
-                                    info.dwCursorPosition, &written);
-                FillConsoleOutputAttribute(handle, info.wAttributes, len,
-                                    info.dwCursorPosition, &written);
+                len = info.srWindow.Right - curs_pos.X + 1;
+                FillConsoleOutputCharacter(handle, ' ', len, curs_pos, &written);
+                FillConsoleOutputAttribute(handle, attr, len, curs_pos, &written);
                 return;
             case 1:              
                 // ESC[1K Clear from start of line to cursor
                 pos.X = 0;
-                pos.Y = info.dwCursorPosition.Y;
-                FillConsoleOutputCharacter(handle, ' ', info.dwCursorPosition.X+1,
-                                    pos, &written);
-                FillConsoleOutputAttribute(handle, info.wAttributes, 
-                                    info.dwCursorPosition.X+1, pos,
-                                    &written);
+                pos.Y = curs_pos.Y;
+                FillConsoleOutputCharacter(handle, ' ', curs_pos.X + 1, pos, &written);
+                FillConsoleOutputAttribute(handle, attr, curs_pos.X + 1, pos, &written);
                 return;
             case 2:              
                 // ESC[2K Clear whole line.
                 pos.X = 0;
-                pos.Y = info.dwCursorPosition.Y;
-                FillConsoleOutputCharacter(handle, ' ', info.dwSize.X, 
-                                                    pos, &written);
-                FillConsoleOutputAttribute(handle, info.wAttributes, info.dwSize.X,
-                                                    pos, &written);
+                pos.Y = curs_pos.Y;
+                FillConsoleOutputCharacter(handle, ' ', size.X, pos, &written);
+                FillConsoleOutputAttribute(handle, attr, size.X, pos, &written);
                 return;
             default :
                 return;
@@ -537,88 +526,79 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
             if (es.argc == 0) es.argv[es.argc++] = 1;   // ESC[L == ESC[1L
             if (es.argc != 1) return;
             rect.Left   = 0;
-            rect.Top    = info.dwCursorPosition.Y;
-            rect.Right  = info.dwSize.X-1;
-            rect.Bottom = info.dwSize.Y-1;
+            rect.Top    = curs_pos.Y;
+            rect.Right  = size.X-1;
+            rect.Bottom = size.Y-1;
             pos.X = 0;
-            pos.Y = info.dwCursorPosition.Y+es.argv[0];
+            pos.Y = curs_pos.Y + es.argv[0];
             char_info.Char.AsciiChar = ' ';
-            char_info.Attributes = info.wAttributes;
+            char_info.Attributes = attr;
             ScrollConsoleScreenBuffer(handle, &rect, &term->scroll_region, pos, &char_info);
             pos.X = 0;
-            pos.Y = info.dwCursorPosition.Y;
-            FillConsoleOutputCharacter(handle, ' ', 
-                            info.dwSize.X*es.argv[0], pos, &written);
-            FillConsoleOutputAttribute(handle, info.wAttributes, 
-                            info.dwSize.X*es.argv[0], pos, &written);
+            pos.Y = curs_pos.Y;
+            FillConsoleOutputCharacter(handle, ' ', size.X*es.argv[0], pos, &written);
+            FillConsoleOutputAttribute(handle, attr, size.X*es.argv[0], pos, &written);
             return;
         case 'M':
             // ESC[#M Delete # line.
             if (es.argc == 0) es.argv[es.argc++] = 1;   // ESC[M == ESC[1M
             if (es.argc != 1) return;
-            if (es.argv[0] > info.dwSize.Y - info.dwCursorPosition.Y)
-                es.argv[0] = info.dwSize.Y - info.dwCursorPosition.Y;
+            if (es.argv[0] > size.Y - curs_pos.Y)
+                es.argv[0] = size.Y - curs_pos.Y;
             rect.Left   = 0;
-            rect.Top    = info.dwCursorPosition.Y+es.argv[0];
-            rect.Right  = info.dwSize.X-1;
-            rect.Bottom = info.dwSize.Y-1;
+            rect.Top    = curs_pos.Y+es.argv[0];
+            rect.Right  = size.X-1;
+            rect.Bottom = size.Y-1;
             pos.X = 0;
-            pos.Y = info.dwCursorPosition.Y;
+            pos.Y = curs_pos.Y;
             char_info.Char.AsciiChar = ' ';
-            char_info.Attributes = info.wAttributes;
+            char_info.Attributes = attr;
             ScrollConsoleScreenBuffer(handle, &rect, &term->scroll_region, pos, &char_info);
-            pos.Y = info.dwSize.Y - es.argv[0];
-            FillConsoleOutputCharacter(handle, ' ', 
-                            info.dwSize.X * es.argv[0], pos, &written);
-            FillConsoleOutputAttribute(handle, info.wAttributes,
-                            info.dwSize.X * es.argv[0], pos, &written);
+            pos.Y = size.Y - es.argv[0];
+            FillConsoleOutputCharacter(handle, ' ', size.X * es.argv[0], pos, &written);
+            FillConsoleOutputAttribute(handle, attr, size.X * es.argv[0], pos, &written);
             return;
         case 'P':
             // ESC[#P Delete # characters.
             if (es.argc == 0) es.argv[es.argc++] = 1;   // ESC[P == ESC[1P
             if (es.argc != 1) return;
-            if (info.dwCursorPosition.X + es.argv[0] > info.dwSize.X - 1)
-                es.argv[0] = info.dwSize.X - info.dwCursorPosition.X;
-            rect.Left   = info.dwCursorPosition.X + es.argv[0];
-            rect.Top    = info.dwCursorPosition.Y;
-            rect.Right  = info.dwSize.X-1;
-            rect.Bottom = info.dwCursorPosition.Y;
+            if (curs_pos.X + es.argv[0] > size.X - 1)
+                es.argv[0] = size.X - curs_pos.X;
+            rect.Left   = curs_pos.X + es.argv[0];
+            rect.Top    = curs_pos.Y;
+            rect.Right  = size.X - 1;
+            rect.Bottom = curs_pos.Y;
             char_info.Char.AsciiChar = ' ';
-            char_info.Attributes = info.wAttributes;
-            ScrollConsoleScreenBuffer(handle, &rect, &term->scroll_region, 
-                                                info.dwCursorPosition, &char_info);
-            pos.X = info.dwSize.X - es.argv[0];
-            pos.Y = info.dwCursorPosition.Y;
-            FillConsoleOutputCharacter(handle, ' ', es.argv[0], pos,
-                                                            &written);
+            char_info.Attributes = attr;
+            ScrollConsoleScreenBuffer(handle, &rect, &term->scroll_region, curs_pos, &char_info);
+            pos.X = size.X - es.argv[0];
+            pos.Y = curs_pos.Y;
+            FillConsoleOutputCharacter(handle, ' ', es.argv[0], pos, &written);
             return;
         case '@':
             // ESC[#@ Insert # blank characters.
             if (es.argc == 0) es.argv[es.argc++] = 1;   // ESC[@ == ESC[1@
             if (es.argc != 1) return;
-            if (info.dwCursorPosition.X + es.argv[0] > info.dwSize.X - 1)
-                es.argv[0] = info.dwSize.X - info.dwCursorPosition.X;
-            rect.Left   = info.dwCursorPosition.X;
-            rect.Top    = info.dwCursorPosition.Y;
-            rect.Right  = info.dwSize.X-1-es.argv[0];
-            rect.Bottom = info.dwCursorPosition.Y;
-            pos.X = info.dwCursorPosition.X+es.argv[0];
-            pos.Y = info.dwCursorPosition.Y;
+            if (curs_pos.X + es.argv[0] > size.X - 1)
+                es.argv[0] = size.X - curs_pos.X;
+            rect.Left   = curs_pos.X;
+            rect.Top    = curs_pos.Y;
+            rect.Right  = size.X - 1 - es.argv[0];
+            rect.Bottom = curs_pos.Y;
+            pos.X = curs_pos.X+es.argv[0];
+            pos.Y = curs_pos.Y;
             char_info.Char.AsciiChar = ' ';
-            char_info.Attributes = info.wAttributes;
-            ScrollConsoleScreenBuffer(handle, &rect, &term->scroll_region, 
-                                                               pos, &char_info);
-            FillConsoleOutputCharacter(handle, ' ', es.argv[0],
-                                    info.dwCursorPosition, &written);
-            FillConsoleOutputAttribute(handle, info.wAttributes, es.argv[0],
-                                    info.dwCursorPosition, &written);
+            char_info.Attributes = attr;
+            ScrollConsoleScreenBuffer(handle, &rect, &term->scroll_region, pos, &char_info);
+            FillConsoleOutputCharacter(handle, ' ', es.argv[0], curs_pos, &written);
+            FillConsoleOutputAttribute(handle, attr, es.argv[0], curs_pos, &written);
             return;
         case 'A':
             // ESC[#A Moves cursor up # lines
             if (es.argc == 0) es.argv[es.argc++] = 1;   // ESC[A == ESC[1A
             if (es.argc != 1) return;
-            pos.X = info.dwCursorPosition.X;
-            pos.Y = info.dwCursorPosition.Y-es.argv[0];
+            pos.X = curs_pos.X;
+            pos.Y = curs_pos.Y - es.argv[0];
             if (pos.Y < 0) pos.Y = 0;
             SetConsoleCursorPosition(handle, pos);
             return;
@@ -626,27 +606,27 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
             // ESC[#B Moves cursor down # lines
             if (es.argc == 0) es.argv[es.argc++] = 1;   // ESC[B == ESC[1B
             if (es.argc != 1) return;
-            pos.X = info.dwCursorPosition.X;
-            pos.Y = info.dwCursorPosition.Y+es.argv[0];
-            if (pos.Y >= info.dwSize.Y) pos.Y = info.dwSize.Y-1;
+            pos.X = curs_pos.X;
+            pos.Y = curs_pos.Y + es.argv[0];
+            if (pos.Y >= size.Y) pos.Y = size.Y-1;
             SetConsoleCursorPosition(handle, pos);
             return;
         case 'C':
             // ESC[#C Moves cursor forward # spaces
             if (es.argc == 0) es.argv[es.argc++] = 1;   // ESC[C == ESC[1C
             if (es.argc != 1) return;
-            pos.X = info.dwCursorPosition.X+es.argv[0];
-            if (pos.X >= info.dwSize.X) pos.X = info.dwSize.X-1;
-            pos.Y = info.dwCursorPosition.Y;
+            pos.X = curs_pos.X+es.argv[0];
+            if (pos.X >= size.X) pos.X = size.X-1;
+            pos.Y = curs_pos.Y;
             SetConsoleCursorPosition(handle, pos);
             return;
         case 'D':
             // ESC[#D Moves cursor back # spaces
             if (es.argc == 0) es.argv[es.argc++] = 1;   // ESC[D == ESC[1D
             if (es.argc != 1) return;
-            pos.X = info.dwCursorPosition.X-es.argv[0];
+            pos.X = curs_pos.X - es.argv[0];
             if (pos.X < 0) pos.X = 0;
-            pos.Y = info.dwCursorPosition.Y;
+            pos.Y = curs_pos.Y;
             SetConsoleCursorPosition(handle, pos);
             return;
         case 'E':
@@ -654,8 +634,8 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
             if (es.argc == 0) es.argv[es.argc++] = 1;   // ESC[E == ESC[1E
             if (es.argc != 1) return;
             pos.X = 0;
-            pos.Y = info.dwCursorPosition.Y+es.argv[0];
-            if (pos.Y >= info.dwSize.Y) pos.Y = info.dwSize.Y-1;
+            pos.Y = curs_pos.Y+es.argv[0];
+            if (pos.Y >= size.Y) pos.Y = size.Y-1;
             SetConsoleCursorPosition(handle, pos);
             return;
         case 'F':
@@ -663,7 +643,7 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
             if (es.argc == 0) es.argv[es.argc++] = 1;   // ESC[F == ESC[1F
             if (es.argc != 1) return;
             pos.X = 0;
-            pos.Y = info.dwCursorPosition.Y-es.argv[0];
+            pos.Y = curs_pos.Y-es.argv[0];
             if (pos.Y < 0) pos.Y = 0;
             SetConsoleCursorPosition(handle, pos);
             return;
@@ -672,9 +652,9 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
             if (es.argc == 0) es.argv[es.argc++] = 1;   // ESC[G == ESC[1G
             if (es.argc != 1) return;
             pos.X = es.argv[0] - 1;
-            if (pos.X >= info.dwSize.X) pos.X = info.dwSize.X-1;
+            if (pos.X >= size.X) pos.X = size.X-1;
             if (pos.X < 0) pos.X = 0;
-            pos.Y = info.dwCursorPosition.Y;
+            pos.Y = curs_pos.Y;
             SetConsoleCursorPosition(handle, pos);
             return;
         case 'f':
@@ -690,17 +670,17 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
             if (es.argc > 2) return;
             pos.X = es.argv[1] - 1;
             if (pos.X < 0) pos.X = 0;
-            if (pos.X >= info.dwSize.X) pos.X = info.dwSize.X-1;
+            if (pos.X >= size.X) pos.X = size.X-1;
             pos.Y = es.argv[0] - 1;
             if (pos.Y < 0) pos.Y = 0;
-            if (pos.Y >= info.dwSize.Y) pos.Y = info.dwSize.Y-1;
+            if (pos.Y >= size.Y) pos.Y = size.Y-1;
             SetConsoleCursorPosition(handle, pos);
             return;
         case 's':
             // ESC[s Saves cursor position for recall later
             if (es.argc != 0) return;
-            term->save_pos.X = info.dwCursorPosition.X;
-            term->save_pos.Y = info.dwCursorPosition.Y;
+            term->save_pos.X = curs_pos.X;
+            term->save_pos.Y = curs_pos.Y;
             return;
         case 'u':
             // ESC[u Return to saved cursor position
@@ -712,7 +692,7 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
             if (es.argc == 0) {
                 // ESC[r == ESC[top;botr
                 term->scroll_region.Top    = 0;
-                term->scroll_region.Bottom = info.dwSize.Y - 1;
+                term->scroll_region.Bottom = size.Y - 1;
             }
             else if (es.argc == 2) {
                 term->scroll_region.Top    = es.argv[0] - 1;
@@ -724,39 +704,33 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
             if (es.argc != 1) return;
             rect = term->scroll_region;
             rect.Top = es.argv[0];
-            rect.Bottom = info.dwSize.Y - 1;
+            rect.Bottom = size.Y - 1;
             pos.X = 0;
             pos.Y = 0;
             char_info.Char.AsciiChar = ' ';
-            char_info.Attributes = info.wAttributes;
-            ScrollConsoleScreenBuffer(handle, &rect, &term->scroll_region, 
-                                                                pos, &char_info);
-                    pos.X = 0;
+            char_info.Attributes = attr;
+            ScrollConsoleScreenBuffer(handle, &rect, &term->scroll_region, pos, &char_info);
+            pos.X = 0;
             pos.X = 0;
             pos.Y = term->scroll_region.Bottom;
-            FillConsoleOutputCharacter(handle, ' ', 
-                            info.dwSize.X*es.argv[0], pos, &written);
-            FillConsoleOutputAttribute(handle, info.wAttributes, 
-                            info.dwSize.X*es.argv[0], pos, &written);
+            FillConsoleOutputCharacter(handle, ' ', size.X*es.argv[0], pos, &written);
+            FillConsoleOutputAttribute(handle, attr, size.X*es.argv[0], pos, &written);
             return;
         case 'T':
             // ESC[#T scroll down # lines
             if (es.argc != 1) return;
             rect = term->scroll_region;
             rect.Top = 0;
-            rect.Bottom = info.dwSize.Y - es.argv[0];
+            rect.Bottom = size.Y - es.argv[0];
             pos.X = 0;
             pos.Y = es.argv[0];
             char_info.Char.AsciiChar = ' ';
-            char_info.Attributes = info.wAttributes;
-            ScrollConsoleScreenBuffer(handle, &rect, &term->scroll_region, 
-                                                                pos, &char_info);
+            char_info.Attributes = attr;
+            ScrollConsoleScreenBuffer(handle, &rect, &term->scroll_region, pos, &char_info);
             pos.X = 0;
             pos.Y = term->scroll_region.Top;
-            FillConsoleOutputCharacter(handle, ' ', 
-                            info.dwSize.X*es.argv[0], pos, &written);
-            FillConsoleOutputAttribute(handle, info.wAttributes, 
-                            info.dwSize.X*es.argv[0], pos, &written);
+            FillConsoleOutputCharacter(handle, ' ', size.X*es.argv[0], pos, &written);
+            FillConsoleOutputAttribute(handle, attr, size.X*es.argv[0], pos, &written);
             return;
         case 't':
             //ESC[8;#;#;t resize terminal to # rows, # cols
