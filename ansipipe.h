@@ -25,9 +25,9 @@ static int ansipipe_init() { return 0; };
 #include <io.h>
 
 #define ANSIPIPE_NAME_LEN 256
-#define ANSIPIPE_POUT_FMT L"\\\\.\\pipe\\%dcout"
-#define ANSIPIPE_PIN_FMT L"\\\\.\\pipe\\%dcin"
-#define ANSIPIPE_PERR_FMT L"\\\\.\\pipe\\%dcerr"
+#define ANSIPIPE_POUT_FMT L"\\\\.\\pipe\\ANSIPIPE_%d_POUT"
+#define ANSIPIPE_PIN_FMT L"\\\\.\\pipe\\ANSIPIPE_%d_PIN"
+#define ANSIPIPE_PERR_FMT L"\\\\.\\pipe\\ANSIPIPE_%d_PERR"
 
 // initialise ansipipe i/o streams. 0 is success.
 static int ansipipe_init()
