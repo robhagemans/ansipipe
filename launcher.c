@@ -1083,12 +1083,17 @@ void pipes_cout_thread(void *dummy)
     // we're sending UTF-8 through these pipes
     char buffer[PIPES_BUFLEN];
     long count = 0;
+    // this is 0 if redirected, -1 if not.
+    // see http://stackoverflow.com/questions/2087775/how-do-i-detect-when-output-is-being-redirected
+    fpos_t pos;
+    fgetpos(stdout, &pos);
     PARSER p = {};
     parser_init(&p, handle_cout);
     ConnectNamedPipe(cout_pipe, NULL);
     while (ReadFile(cout_pipe, buffer, PIPES_BUFLEN-1, &count, NULL)) {
         buffer[count] = 0;
-        parser_print(&p, buffer, PIPES_BUFLEN);
+        if (pos) parser_print(&p, buffer, PIPES_BUFLEN);
+        else printf("%s", buffer);
     }
 }
 
@@ -1097,12 +1102,15 @@ void pipes_cerr_thread(void *dummy)
 {
     char buffer[PIPES_BUFLEN];
     long count = 0;
+    fpos_t pos;
+    fgetpos(stderr, &pos);
     PARSER p = {};
     parser_init(&p, handle_cerr);
     ConnectNamedPipe(cerr_pipe, NULL);
     while (ReadFile(cerr_pipe, buffer, PIPES_BUFLEN-1, &count, NULL)) {
         buffer[count] = 0;
-        parser_print(&p, buffer, PIPES_BUFLEN);
+        if (pos) parser_print(&p, buffer, PIPES_BUFLEN);
+        else fprintf(stderr, "%s", buffer);
     }
 }
 
@@ -1252,7 +1260,7 @@ int ansipipe_launcher(int argc, char *argv[], long *exit_code)
     long save_mode;
     GetConsoleScreenBufferInfo(handle_cout, &save_console);
     GetConsoleMode(handle_cin, &save_mode);
-    
+
     /* open, run, and close */
     wchar_t cmd_line[ARG_BUFLEN];
     PROCESS_INFORMATION pinfo;    
