@@ -161,6 +161,12 @@ int wcscasecmp(wchar_t *a, wchar_t *b)
     return (*a || *b);
 }
 
+
+
+// ============================================================================
+// console globals
+// ============================================================================
+
 // handles to standard i/o streams
 HANDLE handle_cout;
 HANDLE handle_cin;
@@ -174,6 +180,7 @@ typedef struct {
 } FLAGS;
 
 FLAGS flags = { true, true, false };
+
 
 
 // ============================================================================
@@ -229,6 +236,42 @@ int conversion[16] = {0, 4, 2, 6, 1, 5, 3, 7, 8, 12, 10, 14, 9, 13, 11, 15};
 
 int foreground_default = FOREGROUND_WHITE;
 int background_default = BACKGROUND_BLACK;
+
+
+// ============================================================================
+// string cat
+// ============================================================================
+
+typedef struct {
+    wchar_t *buffer;
+    long size;
+    long count;
+} WSTR;
+
+WSTR wstr_create_empty(wchar_t *buffer, long size) {
+    WSTR newstr;
+    if (size > 0)
+        buffer[0] = 0;
+    newstr.buffer = buffer;
+    newstr.size = size;
+    newstr.count = 0;
+    return newstr;
+}
+
+// instr is a null-terminated string
+wchar_t* wstr_write(WSTR *wstr, wchar_t *instr, long length)
+{
+    // length does not include the null terminator; size does
+    if (wstr->count + length + 1 > wstr->size) {
+        wcsncpy(wstr->buffer, instr, wstr->size - wstr->count - 1);
+        wstr->buffer[wstr->count-1] = 0;
+        wstr->count = wstr->size;
+        return NULL;
+    }
+    wcscpy(wstr->buffer + wstr->count, instr);
+    wstr->count += length;
+    return wstr->buffer + wstr->count;
+}
 
 
 // ============================================================================
@@ -1180,39 +1223,29 @@ void proc_join(PROCESS_INFORMATION pinfo, long *exit_code)
 
 // self-call command line flag
 #define STR_SELFCALL "ANSIPIPE_SELF_CALL"
-#define WSTR_SELFCALL L##STR_SELFCALL
+#define WSTR_SELFCALL L"ANSIPIPE_SELF_CALL"
 
 // create command line for child process
 int build_command_line(int argc, char *argv[], wchar_t *buffer, long buflen)
 {
+    // start with empty string
+    WSTR command_line = wstr_create_empty(buffer, buflen);
     // get full program name, exclude extension
     wchar_t module_name[MAX_PATH+1];
     GetModuleFileName(0, module_name, MAX_PATH);
+    // not null-terminated on XP
     module_name[MAX_PATH] = 0;
     int module_len = wcslen(module_name);
-    // start with empty string
-    buffer[0] = L'\0';
-    int count = 0;
     #ifdef ANSIPIPE_SINGLE
-    count += module_len + 1;
-    if (count > buflen) {
-        fprintf(stderr, "ERROR: Application name too long.\n");
-        return 1;
-    }
-    wcscat(buffer, module_name);
-    wcscat(buffer, L" ");
+    wstr_write(&command_line, module_name, module_len);
+    wstr_write(&command_line, L" ", 1);
     #else
     // only call X.EXE if we're named X.COM
     // if we're an EXE the first argument is the child executable, so skip this
     if (module_len > 4 && wcscasecmp(module_name + module_len - 4, L".exe")) {
-        module_name[module_len - 4] = 0;
-        count += module_len + 1;
-        if (count > buflen) {
-            fprintf(stderr, "ERROR: Application name too long.\n");
-            return 1;
-        }
-        wcscat(buffer, module_name);
-        wcscat(buffer, L".exe ");
+        module_name[module_len-4] = 0;
+        wstr_write(&command_line, module_name, module_len-4);
+        wstr_write(&command_line, L".exe ", 5);
     }
     #endif
     // write all arguments to child command line
@@ -1220,24 +1253,21 @@ int build_command_line(int argc, char *argv[], wchar_t *buffer, long buflen)
     for (i = 1; i < argc; ++i) {
         int length = MultiByteToWideChar(CP_UTF8, 0, argv[i], -1, NULL, 0);
         wchar_t wide_buffer[length];
-        // convert UTF-8 -> UTF-16
+        // convert UTF-8 -> UTF-16. length includes NUL.
         MultiByteToWideChar(CP_UTF8, 0, argv[i], -1, wide_buffer, length);
-        count += length + 1;
-        if (count > buflen) {
-            fprintf(stderr, "ERROR: Command line too long.\n");
-            return 1;
-        }
-        wcscat(buffer, wide_buffer);
-        wcscat(buffer, L" ");
+        wstr_write(&command_line, wide_buffer, length-1);
+        wstr_write(&command_line, L" ", 1);
     }
     #ifdef ANSIPIPE_SINGLE
-    count += wcslen(WSTR_SELFCALL);
-    if (count > buflen) {
+    wstr_write(&command_line, WSTR_SELFCALL, wcslen(WSTR_SELFCALL));
+    #endif
+    
+    // if the buffer is full, our command line is not ok
+    if (!wstr_write(&command_line, L"", 0)) {
         fprintf(stderr, "ERROR: Command line too long.\n");
         return 1;
     }
-    wcscat(buffer, WSTR_SELFCALL);
-    #endif
+    printf("calling [%S] %d\n", command_line, wcslen(command_line.buffer));
     return 0;
 }
 
