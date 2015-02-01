@@ -83,7 +83,7 @@ int ansipipe_launcher(int argc, char *argv[], long *exit_code);
         else \
             --argc; \
         if (ansipipe_init() != 0) \
-            printf("ERROR: Failed to initialise ANSI|pipe."); \
+            fprintf(stderr, "ERROR: Failed to initialise ANSI|pipe."); \
     } while(0)
 
 
