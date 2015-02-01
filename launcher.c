@@ -378,6 +378,17 @@ typedef struct {
     COORD save_pos;
 } TERM;
 
+
+void console_fill(HANDLE handle, wchar_t c, int attr, int x, int y, int len)
+{
+    long written;
+    COORD pos;
+    pos.X = x;
+    pos.Y = y;
+    FillConsoleOutputCharacter(handle, c, len, pos, &written);
+    FillConsoleOutputAttribute(handle, attr, len, pos, &written);
+}
+
 // interpret the last escape sequence scanned by ansi_print()
 void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
 {
@@ -471,24 +482,16 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
             case 0:              
                 // ESC[0J erase from cursor to end of display
                 len = (size.Y-curs_pos.Y-1) * size.X + size.X - curs_pos.X - 1;
-                FillConsoleOutputCharacter(handle, ' ', len, curs_pos, &written);
-                FillConsoleOutputAttribute(handle, attr, len, curs_pos, &written);
+                console_fill(handle, ' ', attr, curs_pos.X, curs_pos.Y, len);
                 return;
             case 1:              
                 // ESC[1J erase from start to cursor.
-                pos.X = 0;
-                pos.Y = 0;
                 len = curs_pos.Y * size.X + curs_pos.X + 1;
-                FillConsoleOutputCharacter(handle, ' ', len, pos, &written);
-                FillConsoleOutputAttribute(handle, attr, len, pos, &written);
+                console_fill(handle, ' ', attr, 0, 0, len);
                 return;
             case 2:              
                 // ESC[2J Clear screen and home cursor
-                pos.X = 0;
-                pos.Y = 0;
-                len = size.X * size.Y;
-                FillConsoleOutputCharacter(handle, ' ', len, pos, &written);
-                FillConsoleOutputAttribute(handle, attr, len, pos, &written);
+                console_fill(handle, ' ', attr, 0, 0, size.X * size.Y);
                 SetConsoleCursorPosition(handle, pos);
                 return;
             default :
@@ -501,22 +504,15 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
             case 0:              
                 // ESC[0K Clear to end of line
                 len = info.srWindow.Right - curs_pos.X + 1;
-                FillConsoleOutputCharacter(handle, ' ', len, curs_pos, &written);
-                FillConsoleOutputAttribute(handle, attr, len, curs_pos, &written);
+                console_fill(handle, ' ', attr, curs_pos.X, curs_pos.Y, len);
                 return;
             case 1:              
                 // ESC[1K Clear from start of line to cursor
-                pos.X = 0;
-                pos.Y = curs_pos.Y;
-                FillConsoleOutputCharacter(handle, ' ', curs_pos.X + 1, pos, &written);
-                FillConsoleOutputAttribute(handle, attr, curs_pos.X + 1, pos, &written);
+                console_fill(handle, ' ', attr, 0, curs_pos.Y, curs_pos.X + 1);
                 return;
             case 2:              
                 // ESC[2K Clear whole line.
-                pos.X = 0;
-                pos.Y = curs_pos.Y;
-                FillConsoleOutputCharacter(handle, ' ', size.X, pos, &written);
-                FillConsoleOutputAttribute(handle, attr, size.X, pos, &written);
+                console_fill(handle, ' ', attr, 0, curs_pos.Y, size.X);
                 return;
             default :
                 return;
@@ -534,10 +530,7 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
             char_info.Char.AsciiChar = ' ';
             char_info.Attributes = attr;
             ScrollConsoleScreenBuffer(handle, &rect, &term->scroll_region, pos, &char_info);
-            pos.X = 0;
-            pos.Y = curs_pos.Y;
-            FillConsoleOutputCharacter(handle, ' ', size.X*es.argv[0], pos, &written);
-            FillConsoleOutputAttribute(handle, attr, size.X*es.argv[0], pos, &written);
+            console_fill(handle, ' ', attr, 0, curs_pos.Y, size.X*es.argv[0]);
             return;
         case 'M':
             // ESC[#M Delete # line.
@@ -554,9 +547,7 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
             char_info.Char.AsciiChar = ' ';
             char_info.Attributes = attr;
             ScrollConsoleScreenBuffer(handle, &rect, &term->scroll_region, pos, &char_info);
-            pos.Y = size.Y - es.argv[0];
-            FillConsoleOutputCharacter(handle, ' ', size.X * es.argv[0], pos, &written);
-            FillConsoleOutputAttribute(handle, attr, size.X * es.argv[0], pos, &written);
+            console_fill(handle, ' ', attr, 0, size.Y-es.argv[0], size.X*es.argv[0]);
             return;
         case 'P':
             // ESC[#P Delete # characters.
@@ -571,9 +562,7 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
             char_info.Char.AsciiChar = ' ';
             char_info.Attributes = attr;
             ScrollConsoleScreenBuffer(handle, &rect, &term->scroll_region, curs_pos, &char_info);
-            pos.X = size.X - es.argv[0];
-            pos.Y = curs_pos.Y;
-            FillConsoleOutputCharacter(handle, ' ', es.argv[0], pos, &written);
+            console_fill(handle, ' ', attr, size.X-es.argv[0], curs_pos.Y, es.argv[0]);
             return;
         case '@':
             // ESC[#@ Insert # blank characters.
@@ -590,8 +579,7 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
             char_info.Char.AsciiChar = ' ';
             char_info.Attributes = attr;
             ScrollConsoleScreenBuffer(handle, &rect, &term->scroll_region, pos, &char_info);
-            FillConsoleOutputCharacter(handle, ' ', es.argv[0], curs_pos, &written);
-            FillConsoleOutputAttribute(handle, attr, es.argv[0], curs_pos, &written);
+            console_fill(handle, ' ', attr, curs_pos.X, curs_pos.Y, es.argv[0]);
             return;
         case 'A':
             // ESC[#A Moves cursor up # lines
@@ -710,11 +698,7 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
             char_info.Char.AsciiChar = ' ';
             char_info.Attributes = attr;
             ScrollConsoleScreenBuffer(handle, &rect, &term->scroll_region, pos, &char_info);
-            pos.X = 0;
-            pos.X = 0;
-            pos.Y = term->scroll_region.Bottom;
-            FillConsoleOutputCharacter(handle, ' ', size.X*es.argv[0], pos, &written);
-            FillConsoleOutputAttribute(handle, attr, size.X*es.argv[0], pos, &written);
+            console_fill(handle, ' ', attr, 0, term->scroll_region.Bottom, size.X*es.argv[0]);
             return;
         case 'T':
             // ESC[#T scroll down # lines
@@ -727,10 +711,7 @@ void ansi_output(HANDLE handle, TERM *term, SEQUENCE es)
             char_info.Char.AsciiChar = ' ';
             char_info.Attributes = attr;
             ScrollConsoleScreenBuffer(handle, &rect, &term->scroll_region, pos, &char_info);
-            pos.X = 0;
-            pos.Y = term->scroll_region.Top;
-            FillConsoleOutputCharacter(handle, ' ', size.X*es.argv[0], pos, &written);
-            FillConsoleOutputAttribute(handle, attr, size.X*es.argv[0], pos, &written);
+            console_fill(handle, ' ', attr, 0, term->scroll_region.Top, size.X*es.argv[0]);
             return;
         case 't':
             //ESC[8;#;#;t resize terminal to # rows, # cols
