@@ -181,6 +181,8 @@ typedef struct {
 
 FLAGS flags = { true, true, false };
 
+// size of pipe buffers
+#define IO_BUFLEN 1024
 
 
 // ============================================================================
@@ -782,17 +784,21 @@ void ansi_output(TERM *term, SEQUENCE es)
 }
 
 // retrieve utf-8 and ansi sequences from standard input. 0 == success
-int ansi_input(char *buffer, long buflen, long *count)
+// length of buffer must be IO_BUFLEN
+int ansi_input(char *buffer, long *count)
 {
     // event buffer size: 
     // -  for utf8, buflen/4 is OK as one wchar is at most 4 chars of utf8
     // -  escape codes are at most 5 ascii-128 wchars; translate into 5 chars
     // so buflen/5 events should fit in buflen wchars and buflen utf8 chars.
-    wchar_t wide_buffer[buflen];
-    WSTR wstr = wstr_create_empty(wide_buffer, buflen);
-    INPUT_RECORD events[buflen / 5];
+    // plus one char for NUL.
+//    long buflen = IO_BUFLEN;
+//    long events_len = (buflen-1)/5;
+    wchar_t wide_buffer[IO_BUFLEN];
+    WSTR wstr = wstr_create_empty(wide_buffer, IO_BUFLEN);
+    INPUT_RECORD events[(IO_BUFLEN-1)/5];
     long ecount;
-    if (!ReadConsoleInput(handle_cin, events, buflen / 5, &ecount))
+    if (!ReadConsoleInput(handle_cin, events, (IO_BUFLEN-1)/5, &ecount))
         return 1;
     int i;
     wchar_t c;
@@ -893,7 +899,7 @@ int ansi_input(char *buffer, long buflen, long *count)
     // find UTF8 string length    
     int length = WideCharToMultiByte(CP_UTF8, 0, wide_buffer, -1, NULL, 0, NULL, NULL);
     // safety check
-    if (length >= buflen) {
+    if (length >= IO_BUFLEN) {
         fprintf(stderr, "ERROR: UTF-8 buffer overflow.\n");
         return 1;
     }
@@ -1048,7 +1054,6 @@ void parser_print(PARSER *p, char *s, int buflen)
 
 // pipe globals
 #define PIPES_TIMEOUT 1000
-#define PIPES_BUFLEN 1024
 
 // handles to named pipes
 HANDLE cout_pipe;
@@ -1061,18 +1066,18 @@ int pipes_create(long pid)
     wchar_t name[ANSIPIPE_NAME_LEN];
     _snwprintf(name, ANSIPIPE_NAME_LEN, ANSIPIPE_POUT_FMT, pid);
     cout_pipe = CreateNamedPipe(name, PIPE_ACCESS_INBOUND, 
-                        PIPE_TYPE_BYTE | PIPE_READMODE_BYTE, 1, PIPES_BUFLEN, 
-                        PIPES_BUFLEN, PIPES_TIMEOUT, NULL);
+                        PIPE_TYPE_BYTE | PIPE_READMODE_BYTE, 1, IO_BUFLEN, 
+                        IO_BUFLEN, PIPES_TIMEOUT, NULL);
     if (INVALID_HANDLE_VALUE == cout_pipe) return 1;
     _snwprintf(name, ANSIPIPE_NAME_LEN, ANSIPIPE_PIN_FMT, pid);
     cin_pipe = CreateNamedPipe(name, PIPE_ACCESS_OUTBOUND, 
-                        PIPE_TYPE_BYTE | PIPE_READMODE_BYTE, 1, PIPES_BUFLEN, 
-                        PIPES_BUFLEN, PIPES_TIMEOUT, NULL);
+                        PIPE_TYPE_BYTE | PIPE_READMODE_BYTE, 1, IO_BUFLEN, 
+                        IO_BUFLEN, PIPES_TIMEOUT, NULL);
     if (INVALID_HANDLE_VALUE == cin_pipe) return 1;
     _snwprintf(name, ANSIPIPE_NAME_LEN, ANSIPIPE_PERR_FMT, pid);
     cerr_pipe = CreateNamedPipe(name, PIPE_ACCESS_INBOUND, 
-                        PIPE_TYPE_BYTE | PIPE_READMODE_BYTE, 1, PIPES_BUFLEN, 
-                        PIPES_BUFLEN, PIPES_TIMEOUT, NULL);
+                        PIPE_TYPE_BYTE | PIPE_READMODE_BYTE, 1, IO_BUFLEN, 
+                        IO_BUFLEN, PIPES_TIMEOUT, NULL);
     if (INVALID_HANDLE_VALUE == cerr_pipe) return 1;
     return 0;
 }
@@ -1081,18 +1086,18 @@ int pipes_create(long pid)
 void pipes_cout_thread(void *dummy) 
 {
     // we're sending UTF-8 through these pipes
-    char buffer[PIPES_BUFLEN];
+    char buffer[IO_BUFLEN];
     long count = 0;
     // this is 0 if redirected, -1 if not.
     // see http://stackoverflow.com/questions/2087775/how-do-i-detect-when-output-is-being-redirected
     fpos_t pos;
     fgetpos(stdout, &pos);
-    PARSER p = {};
+    PARSER p = { 0 };
     parser_init(&p, handle_cout);
     ConnectNamedPipe(cout_pipe, NULL);
-    while (ReadFile(cout_pipe, buffer, PIPES_BUFLEN-1, &count, NULL)) {
+    while (ReadFile(cout_pipe, buffer, IO_BUFLEN-1, &count, NULL)) {
         buffer[count] = 0;
-        if (pos) parser_print(&p, buffer, PIPES_BUFLEN);
+        if (pos) parser_print(&p, buffer, IO_BUFLEN);
         else printf("%s", buffer);
     }
 }
@@ -1100,16 +1105,16 @@ void pipes_cout_thread(void *dummy)
 // Thread function that handles incoming bytestreams to be outputed on stderr
 void pipes_cerr_thread(void *dummy) 
 {
-    char buffer[PIPES_BUFLEN];
+    char buffer[IO_BUFLEN];
     long count = 0;
     fpos_t pos;
     fgetpos(stderr, &pos);
-    PARSER p = {};
+    PARSER p = { 0 };
     parser_init(&p, handle_cerr);
     ConnectNamedPipe(cerr_pipe, NULL);
-    while (ReadFile(cerr_pipe, buffer, PIPES_BUFLEN-1, &count, NULL)) {
+    while (ReadFile(cerr_pipe, buffer, IO_BUFLEN-1, &count, NULL)) {
         buffer[count] = 0;
-        if (pos) parser_print(&p, buffer, PIPES_BUFLEN);
+        if (pos) parser_print(&p, buffer, IO_BUFLEN);
         else fprintf(stderr, "%s", buffer);
     }
 }
@@ -1117,12 +1122,12 @@ void pipes_cerr_thread(void *dummy)
 // Thread function that handles incoming bytestreams from stdin
 void pipes_cin_thread(void *dummy)
 {
-    char buffer[PIPES_BUFLEN];
+    char buffer[IO_BUFLEN];
     long countr = 0;
     long countw = 0;
     ConnectNamedPipe(cin_pipe, NULL);
     for(;;) {
-        if (ansi_input(buffer, PIPES_BUFLEN-1, &countr) != 0)
+        if (ansi_input(buffer, &countr) != 0)
             break;
         if (!WriteFile(cin_pipe, buffer, countr, &countw, NULL))
             break;
@@ -1188,8 +1193,10 @@ void proc_join(PROCESS_INFORMATION pinfo, long *exit_code)
 // main function
 // ============================================================================
 
-// buffer for command-line arguments to child process
-#define ARG_BUFLEN 2048
+// buffer for command-line arguments to child process. Win32 max is 8K
+#define ARG_BUFLEN 8192
+// max length of single argument. Twice MAX_PATH (260) seems long enough.
+#define CONV_BUFLEN 512
 
 // self-call command line flag
 #define STR_SELFCALL "ANSIPIPE_SELF_CALL"
@@ -1220,12 +1227,14 @@ int build_command_line(int argc, char *argv[], wchar_t *buffer, long buflen)
     #endif
     // write all arguments to child command line
     int i = 0;
+    wchar_t wide_buffer[CONV_BUFLEN+1];
     for (i = 1; i < argc; ++i) {
-        int length = MultiByteToWideChar(CP_UTF8, 0, argv[i], -1, NULL, 0);
-        wchar_t wide_buffer[length];
         // convert UTF-8 -> UTF-16. length includes NUL.
-        MultiByteToWideChar(CP_UTF8, 0, argv[i], -1, wide_buffer, length);
-        wstr_write(&command_line, wide_buffer, length-1);
+        if (MultiByteToWideChar(CP_UTF8, 0, argv[i], -1, wide_buffer, CONV_BUFLEN) == 0) {
+            fprintf(stderr, "ERROR: Command line argument too long.\n");
+            return 1;
+        }
+        wstr_write(&command_line, wide_buffer, CONV_BUFLEN-1);
         wstr_write(&command_line, L" ", 1);
     }
     #ifdef ANSIPIPE_SINGLE
