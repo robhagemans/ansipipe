@@ -20,7 +20,7 @@ If your goal is just to maintain a Windows port of a utility you've written
 originally for the Unix world, digging into the Windows API is an unwelcome 
 distraction.  
 
-**ANSI|pipe** is a less-than-50KiB executable that solves all three issues in one go.
+**ANSI|pipe** solves all three issues in one go.
 
 
 ## How to use it

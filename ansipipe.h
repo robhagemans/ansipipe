@@ -36,9 +36,9 @@ static int ansipipe_init()
     wchar_t name_out[ANSIPIPE_NAME_LEN];
     wchar_t name_in[ANSIPIPE_NAME_LEN];
     wchar_t name_err[ANSIPIPE_NAME_LEN];
-    swprintf(name_out, ANSIPIPE_POUT_FMT, GetCurrentProcessId());
-    swprintf(name_in, ANSIPIPE_PIN_FMT, GetCurrentProcessId());
-    swprintf(name_err, ANSIPIPE_PERR_FMT, GetCurrentProcessId());
+    _snwprintf(name_out, ANSIPIPE_NAME_LEN, ANSIPIPE_POUT_FMT, GetCurrentProcessId());
+    _snwprintf(name_in, ANSIPIPE_NAME_LEN, ANSIPIPE_PIN_FMT, GetCurrentProcessId());
+    _snwprintf(name_err, ANSIPIPE_NAME_LEN, ANSIPIPE_PERR_FMT, GetCurrentProcessId());
 
     // keep a copy of the existing stdio streams in case we fail
     int old_out = _dup(_fileno(stdout));

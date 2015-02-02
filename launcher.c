@@ -1059,17 +1059,17 @@ HANDLE cerr_pipe;
 int pipes_create(long pid) 
 {
     wchar_t name[ANSIPIPE_NAME_LEN];
-    swprintf(name, ANSIPIPE_POUT_FMT, pid);
+    _snwprintf(name, ANSIPIPE_NAME_LEN, ANSIPIPE_POUT_FMT, pid);
     cout_pipe = CreateNamedPipe(name, PIPE_ACCESS_INBOUND, 
                         PIPE_TYPE_BYTE | PIPE_READMODE_BYTE, 1, PIPES_BUFLEN, 
                         PIPES_BUFLEN, PIPES_TIMEOUT, NULL);
     if (INVALID_HANDLE_VALUE == cout_pipe) return 1;
-    swprintf(name, ANSIPIPE_PIN_FMT, pid);
+    _snwprintf(name, ANSIPIPE_NAME_LEN, ANSIPIPE_PIN_FMT, pid);
     cin_pipe = CreateNamedPipe(name, PIPE_ACCESS_OUTBOUND, 
                         PIPE_TYPE_BYTE | PIPE_READMODE_BYTE, 1, PIPES_BUFLEN, 
                         PIPES_BUFLEN, PIPES_TIMEOUT, NULL);
     if (INVALID_HANDLE_VALUE == cin_pipe) return 1;
-    swprintf(name, ANSIPIPE_PERR_FMT, pid);
+    _snwprintf(name, ANSIPIPE_NAME_LEN, ANSIPIPE_PERR_FMT, pid);
     cerr_pipe = CreateNamedPipe(name, PIPE_ACCESS_INBOUND, 
                         PIPE_TYPE_BYTE | PIPE_READMODE_BYTE, 1, PIPES_BUFLEN, 
                         PIPES_BUFLEN, PIPES_TIMEOUT, NULL);
