@@ -80,7 +80,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
         MessageBox(NULL,
             _T("Call to RegisterClassEx failed!"),
             _T("Win32 Guided Tour"),
-            NULL);
+            0);
 
         return 1;
     }
@@ -114,7 +114,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
         MessageBox(NULL,
             _T("Call to CreateWindow failed!"),
             _T("Win32 Guided Tour"),
-            NULL);
+            0);
 
         return 1;
     }
