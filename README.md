@@ -20,7 +20,7 @@ If your goal is just to maintain a Windows port of a utility you've written
 originally for the Unix world, digging into the Windows API is an unwelcome 
 distraction.  
 
-**ANSI|pipe** solves all three issues in one go.
+**ANSI|pipe** solves all three issues in one 33k executable.
 
 
 ## How to use it
@@ -130,8 +130,8 @@ can use `MYAPP.EXE` and avoid a console window. If ANSI|pipe sees its name ends
 in `.EXE`, it will take as its first argument the executable to run; if its name
 end in `.COM` it will look for the same name with an `.EXE` extension.   
 
-I've compiled ANSI|pipe using MinGW GCC. You may need to modify the code for it
-to compile on MS Visual C or LVVM/Clang. 
+The ANSI|pipe Lancher compiles to a 33k executable using MinGW GCC. It also
+compiles cleanly on Microsoft Visual C++.
 
 
 ## Acknowledgements
