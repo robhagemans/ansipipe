@@ -20,7 +20,8 @@ If your goal is just to maintain a Windows port of a utility you've written
 originally for the Unix world, digging into the Windows API is an unwelcome 
 distraction.  
 
-**ANSI|pipe** solves all three issues in one 33k executable.
+**ANSI|pipe** solves all three issues in one go. All you need to add to your 
+project is a 33KiB executable and a 3KiB header file.
 
 
 ## How to use it
