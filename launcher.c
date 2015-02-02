@@ -1230,11 +1230,12 @@ int build_command_line(int argc, char *argv[], wchar_t *buffer, long buflen)
     wchar_t wide_buffer[CONV_BUFLEN+1];
     for (i = 1; i < argc; ++i) {
         // convert UTF-8 -> UTF-16. length includes NUL.
-        if (MultiByteToWideChar(CP_UTF8, 0, argv[i], -1, wide_buffer, CONV_BUFLEN) == 0) {
+        long length = MultiByteToWideChar(CP_UTF8, 0, argv[i], -1, wide_buffer, CONV_BUFLEN);
+        if (!length) {
             fprintf(stderr, "ERROR: Command line argument too long.\n");
             return 1;
         }
-        wstr_write(&command_line, wide_buffer, CONV_BUFLEN-1);
+        wstr_write(&command_line, wide_buffer, length-1);
         wstr_write(&command_line, L" ", 1);
     }
     #ifdef ANSIPIPE_SINGLE
