@@ -1,6 +1,9 @@
 #include <iostream>
 #include "ansipipe.h"
 
+// needed for MSVC
+#include <string>
+
 /*
  * This source demonstrates how to use ANSI|pipe in a console-based C++ project.
  * Under Windows, if the binary is run through the ANSI|pipe launcher, UTF-8 
