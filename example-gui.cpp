@@ -53,8 +53,8 @@ int WINAPI WinMain(HINSTANCE hInstance,
 
     // we can use the console evven if it's a gui app
     std::cout << "\x1b[104;1mANSI\x1b[0m|\x1b[94;1mpipe\x1b[0m GUI example\n";
-    std::cout << "\n\n\n\n\x1b[2AHello,\x1b[1A\x1b[91mWorld!\x1b[2B\x1b[0m";
-    std::cout << "Здравствуй,\x1b[1A\x1b[92mмир!\x1b[0m\x1b[2B ";
+    std::cout << "\n\n\n\n\x1b[2AHello, \x1b[1A\x1b[91mWorld!\x1b[2B\x1b[0m";
+    std::cout << "Здравствуй, \x1b[1A\x1b[92mмир!\x1b[0m\x1b[2B ";
     std::cout << "Γεια σου \x1b[1A\x1b[94mκόσμε!\x1b[2B\x1b[0m\n";
 
     // You could also get input, but if we put it right here it'll hold up 
