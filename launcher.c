@@ -287,18 +287,18 @@ wchar_t* wstr_write_char(WSTR *wstr, wchar_t c)
 }
 
 // ============================================================================
-// print buffer
+// utf-8 buffer
 // ============================================================================
 
 // max length of utf-8 sequence is 4 bytes
-#define PBUF_PREBUF_SIZE 8
+#define U8BUF_SIZE 8
 
 typedef struct {
     HANDLE handle;
-    char prebuf[PBUF_PREBUF_SIZE];
-    int precount;
-    int presize;
-} PBUF;
+    char buf[U8BUF_SIZE];
+    int count;
+    int size;
+} U8BUF;
 
 
 COORD onebyone = { 1, 1 };
@@ -327,33 +327,29 @@ void console_put_char(HANDLE handle, wchar_t s)
     }    
 }
 
-// convert prebuffer UTF-8 sequence into one wide char for buffer
-void pbuf_preflush(PBUF *pbuf)
-{
-    // leave space for NUL
-    wchar_t wide_buffer[2] = L"";
-    // utf8 sequences could be clipped if buffer is full, doesn't seem to happen
-    MultiByteToWideChar(CP_UTF8, 0, pbuf->prebuf, pbuf->precount, wide_buffer, 1);
-    pbuf->precount = 0;
-    console_put_char(pbuf->handle, wide_buffer[0]);
-    if (flags.onlcr && wide_buffer[0] == L'\r') 
-        console_put_char(pbuf->handle, L'\n');
-}
 
-//  add a character in the buffer and flush the buffer if it is full
-void pbuf_push(PBUF *pbuf, unsigned char c)
+//  add a character in the buffer; return wchar if complete, NUL otherwise.
+wchar_t u8buf_push(U8BUF *u8buf, unsigned char c)
 {
     // skip NUL
     if (!c) return;
-    pbuf->prebuf[pbuf->precount++] = c;
-    if (1 == pbuf->precount) {
+    u8buf->buf[u8buf->count++] = c;
+    if (1 == u8buf->count) {
         // first byte determines sequence length
-        if (c >= 0xf0) pbuf->presize = 4;
-        else if (c >= 0xe0) pbuf->presize = 3;
-        else if (c >= 0xc0) pbuf->presize = 2;
-        else pbuf->presize = 1;
+        if (c >= 0xf0) u8buf->size = 4;
+        else if (c >= 0xe0) u8buf->size = 3;
+        else if (c >= 0xc0) u8buf->size = 2;
+        else u8buf->size = 1;
     }
-    if (pbuf->precount >= pbuf->presize) pbuf_preflush(pbuf);
+    if (u8buf->count >= u8buf->size) {
+        // leave space for NUL
+        wchar_t wide_buffer[2] = L"";
+        // utf8 sequences could be clipped if buffer is full, doesn't seem to happen
+        MultiByteToWideChar(CP_UTF8, 0, u8buf->buf, u8buf->count, wide_buffer, 1);
+        u8buf->count = 0;
+        return wide_buffer[0];
+    }
+    return L'\0';
 }
 
 
@@ -898,7 +894,7 @@ typedef struct {
     HANDLE handle;
     SEQUENCE es;
     TERM term;
-    PBUF pbuf;
+    U8BUF pbuf;
     int state;
 } PARSER;
 
@@ -935,8 +931,15 @@ void parser_print(PARSER *p, char *s, int buflen)
     for (; buflen && *s; --buflen, ++s) {
         switch (p->state) {
         case 1:
-            if (*s == '\x1b') p->state = 2;
-            else pbuf_push(&(p->pbuf), p->term.concealed ? ' ' : *s);    
+            if (*s == '\x1b') {
+                p->state = 2;
+            }
+            else {
+                wchar_t wc = u8buf_push(&(p->pbuf), p->term.concealed ? ' ' : *s);    
+                if (wc) console_put_char(p->handle, wc);
+                if (flags.onlcr && wc == L'\r') 
+                        console_put_char(p->handle, L'\n');
+            }
             break;
         case 2:
             if (*s == '\x1b');       // \e\e...\e == \e
