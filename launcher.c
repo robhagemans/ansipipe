@@ -294,7 +294,6 @@ wchar_t* wstr_write_char(WSTR *wstr, wchar_t c)
 #define U8BUF_SIZE 8
 
 typedef struct {
-    HANDLE handle;
     char buf[U8BUF_SIZE];
     int count;
     int size;
@@ -904,7 +903,6 @@ typedef struct {
 void parser_init(PARSER *p, HANDLE handle)
 {
     p->handle = handle;
-    p->pbuf.handle = handle;
     p->state = 1;
     p->term.handle = handle;
     p->term.foreground = foreground_default;
