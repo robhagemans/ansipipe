@@ -349,6 +349,7 @@ typedef struct {
     int attr;
     HANDLE handle;
     wchar_t hold;
+    int end;
 } TERM;
 
 COORD onebyone = { 1, 1 };
@@ -462,15 +463,6 @@ void ansi_output(TERM *term, SEQUENCE es)
         }
         // Ignore any other \e[? sequences.
         if (es.prefix2 != 0) return;
-        // retrieve current positions and sizes
-        CONSOLE_SCREEN_BUFFER_INFO info;
-        GetConsoleScreenBufferInfo(term->handle, &info);
-        term->col = info.dwCursorPosition.X;
-        term->row = info.dwCursorPosition.Y;
-        term->width = info.dwSize.X;
-        term->height = info.dwSize.Y;
-        term->attr = info.wAttributes;
-        
         switch (es.suffix) {
         case 'm':
             if (es.argc == 0) es.argv[es.argc++] = 0;
@@ -557,8 +549,7 @@ void ansi_output(TERM *term, SEQUENCE es)
             switch (es.argv[0]) {
             case 0:              
                 // ESC[0K Clear to end of line
-                console_fill(term, term->col, term->row, 
-                                        info.srWindow.Right - term->col + 1);
+                console_fill(term, term->col, term->row, term->end - term->col + 1);
                 return;
             case 1:              
                 // ESC[1K Clear from start of line to cursor
@@ -923,6 +914,15 @@ void parser_init(PARSER *p, HANDLE handle)
 void parser_print(PARSER *p, char *s, int buflen)
 {
     for (; buflen && *s; --buflen, ++s) {
+        // retrieve current positions and sizes
+        CONSOLE_SCREEN_BUFFER_INFO info;
+        GetConsoleScreenBufferInfo(p->term.handle, &info);
+        p->term.col = info.dwCursorPosition.X;
+        p->term.row = info.dwCursorPosition.Y;
+        p->term.width = info.dwSize.X;
+        p->term.height = info.dwSize.Y;
+        p->term.attr = info.wAttributes;
+        p->term.end = info.srWindow.Right;
         switch (p->state) {
         case 1:
             if (*s == '\x1b') {
