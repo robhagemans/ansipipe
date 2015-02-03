@@ -290,29 +290,15 @@ wchar_t* wstr_write_char(WSTR *wstr, wchar_t c)
 // print buffer
 // ============================================================================
 
-// max length of UTF-16 buffer
-#define PBUF_SIZE 256
 // max length of utf-8 sequence is 4 bytes
 #define PBUF_PREBUF_SIZE 8
 
 typedef struct {
     HANDLE handle;
-    int count;
-    wchar_t buf[PBUF_SIZE];
     char prebuf[PBUF_PREBUF_SIZE];
     int precount;
     int presize;
 } PBUF;
-
-
-//  write buffer to console
-void pbuf_flush(PBUF *pbuf)
-{
-    if (pbuf->count <= 0) return;
-    long written;
-//    WriteConsoleW(pbuf->handle, pbuf->buf, pbuf->count, &written, NULL);
-    pbuf->count = 0;
-}
 
 
 COORD onebyone = { 1, 1 };
@@ -320,7 +306,7 @@ COORD origin = { 0, 0 };
 
 wchar_t hold = 0;
 
-void console_put_char(HANDLE handle, wchar_t *s)
+void console_put_char(HANDLE handle, wchar_t s)
 {
     // TODO: we need to get hold of a TERM pointer, so all of this is already there
     CONSOLE_SCREEN_BUFFER_INFO info;
@@ -329,32 +315,29 @@ void console_put_char(HANDLE handle, wchar_t *s)
     if (!hold & info.dwCursorPosition.Y == info.dwSize.Y-1 && info.dwCursorPosition.X == info.dwSize.X-1) {
         SMALL_RECT dest = { info.dwCursorPosition.X, info.dwCursorPosition.Y, info.dwCursorPosition.X, info.dwCursorPosition.Y };
         CHAR_INFO ch;
-        ch.Char.UnicodeChar = s[0];
+        ch.Char.UnicodeChar = s;
         ch.Attributes = info.wAttributes;
         WriteConsoleOutput(handle, &ch, onebyone, origin, &dest);
-        hold = s[0];
+        hold = s;
     }
     else {
+        hold = 0;
         long written;
-        if (hold) {
-            hold = 0;
-        }
-        WriteConsole(handle, s, 1, &written, NULL);
+        WriteConsole(handle, &s, 1, &written, NULL);
     }    
 }
 
 // convert prebuffer UTF-8 sequence into one wide char for buffer
 void pbuf_preflush(PBUF *pbuf)
 {
+    // leave space for NUL
     wchar_t wide_buffer[2] = L"";
     // utf8 sequences could be clipped if buffer is full, doesn't seem to happen
     MultiByteToWideChar(CP_UTF8, 0, pbuf->prebuf, pbuf->precount, wide_buffer, 1);
-    wide_buffer[1] = 0;
-    pbuf->buf[pbuf->count++] = wide_buffer[0];
     pbuf->precount = 0;
+    console_put_char(pbuf->handle, wide_buffer[0]);
     if (flags.onlcr && wide_buffer[0] == L'\r') 
-        pbuf->buf[pbuf->count++] = L'\n';
-    console_put_char(pbuf->handle, wide_buffer);
+        console_put_char(pbuf->handle, L'\n');
 }
 
 //  add a character in the buffer and flush the buffer if it is full
@@ -371,8 +354,6 @@ void pbuf_push(PBUF *pbuf, unsigned char c)
         else pbuf->presize = 1;
     }
     if (pbuf->precount >= pbuf->presize) pbuf_preflush(pbuf);
-    // keep at least 2 wchars free so we can add CRLF at once if necessary
-    if (pbuf->count >= PBUF_SIZE-1) pbuf_flush(pbuf);
 }
 
 
@@ -960,13 +941,11 @@ void parser_print(PARSER *p, char *s, int buflen)
         case 2:
             if (*s == '\x1b');       // \e\e...\e == \e
             else if (*s == '[') {
-                pbuf_flush(&(p->pbuf));
                 p->es.prefix = *s;
                 p->es.prefix2 = 0;
                 p->state = 3;
             }
             else if (*s == ']') {
-                pbuf_flush(&(p->pbuf));
                 p->es.prefix = *s;
                 p->es.prefix2 = 0;
                 p->es.argc = 0;
@@ -1042,7 +1021,6 @@ void parser_print(PARSER *p, char *s, int buflen)
             }
         }
     }
-    pbuf_flush(&(p->pbuf));
 }
 
 
