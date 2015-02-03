@@ -337,8 +337,6 @@ void console_put_char(HANDLE handle, wchar_t *s)
     else {
         long written;
         if (hold) {
-            // write the held character in the normal way, so cursor advances etc.
-            WriteConsole(handle, &hold, 1, &written, NULL);
             hold = 0;
         }
         WriteConsole(handle, s, 1, &written, NULL);
