@@ -300,6 +300,57 @@ typedef struct {
     int size;
 } U8BUF;
 
+//  add a character in the buffer; return wchar if complete, NUL otherwise.
+wchar_t u8buf_push(U8BUF *u8buf, unsigned char c)
+{
+    // skip NUL
+    if (!c) return;
+    u8buf->buf[u8buf->count++] = c;
+    if (1 == u8buf->count) {
+        // first byte determines sequence length
+        if (c >= 0xf0) u8buf->size = 4;
+        else if (c >= 0xe0) u8buf->size = 3;
+        else if (c >= 0xc0) u8buf->size = 2;
+        else u8buf->size = 1;
+    }
+    if (u8buf->count >= u8buf->size) {
+        // leave space for NUL
+        wchar_t wide_buffer[2] = L"";
+        // utf8 sequences could be clipped if buffer is full, doesn't seem to happen
+        MultiByteToWideChar(CP_UTF8, 0, u8buf->buf, u8buf->count, wide_buffer, 1);
+        u8buf->count = 0;
+        return wide_buffer[0];
+    }
+    return L'\0';
+}
+
+
+
+// ============================================================================
+// windows console
+// ============================================================================
+
+// current attributes
+typedef struct {
+    int foreground;
+    int background;
+    bool concealed;
+    bool bold;
+    bool underline;
+    bool rvideo;
+    // scrolling
+    SMALL_RECT scroll_region;
+    // saved cursor position
+    COORD save_pos;
+    // terminal attributes
+    int col;
+    int row;
+    int width;
+    int height;
+    int attr;
+    HANDLE handle;
+} TERM;
+
 
 COORD onebyone = { 1, 1 };
 COORD origin = { 0, 0 };
@@ -326,75 +377,6 @@ void console_put_char(HANDLE handle, wchar_t s)
         WriteConsole(handle, &s, 1, &written, NULL);
     }    
 }
-
-
-//  add a character in the buffer; return wchar if complete, NUL otherwise.
-wchar_t u8buf_push(U8BUF *u8buf, unsigned char c)
-{
-    // skip NUL
-    if (!c) return;
-    u8buf->buf[u8buf->count++] = c;
-    if (1 == u8buf->count) {
-        // first byte determines sequence length
-        if (c >= 0xf0) u8buf->size = 4;
-        else if (c >= 0xe0) u8buf->size = 3;
-        else if (c >= 0xc0) u8buf->size = 2;
-        else u8buf->size = 1;
-    }
-    if (u8buf->count >= u8buf->size) {
-        // leave space for NUL
-        wchar_t wide_buffer[2] = L"";
-        // utf8 sequences could be clipped if buffer is full, doesn't seem to happen
-        MultiByteToWideChar(CP_UTF8, 0, u8buf->buf, u8buf->count, wide_buffer, 1);
-        u8buf->count = 0;
-        return wide_buffer[0];
-    }
-    return L'\0';
-}
-
-
-// ============================================================================
-// ANSI sequences
-// ============================================================================
-
-#define MAX_STRARG 1024         // max string arg length
-#define MAX_ARG 16              // max number of args in an escape sequence
-
-// current escape sequence state:
-// for instance, with \e[33;45;1m we have
-// prefix = '[',
-// es.argc = 3, es.argv[0] = 33, es.argv[1] = 45, es.argv[2] = 1
-// suffix = 'm'
-typedef struct {
-    char prefix;                    // escape sequence prefix ( '[' or '(' );
-    char prefix2;                   // secondary prefix ( '?' );
-    char suffix;                    // escape sequence suffix
-    int argc;                    // escape sequence args count
-    int argv[MAX_ARG];           // escape sequence args
-    wchar_t args[MAX_STRARG];       // escape sequence string arg; length in argv[1]
-} SEQUENCE;
-
-// current attributes
-typedef struct {
-    int foreground;
-    int background;
-    bool concealed;
-    bool bold;
-    bool underline;
-    bool rvideo;
-    // scrolling
-    SMALL_RECT scroll_region;
-    // saved cursor position
-    COORD save_pos;
-    // terminal attributes
-    int col;
-    int row;
-    int width;
-    int height;
-    int attr;
-    HANDLE handle;
-} TERM;
-
 
 void console_fill(TERM *term, int x, int y, int len)
 {
@@ -449,6 +431,26 @@ void console_set_pos(TERM *term, int x, int y)
 }
 
 
+// ============================================================================
+// ANSI sequences
+// ============================================================================
+
+#define MAX_STRARG 1024         // max string arg length
+#define MAX_ARG 16              // max number of args in an escape sequence
+
+// current escape sequence state:
+// for instance, with \e[33;45;1m we have
+// prefix = '[',
+// es.argc = 3, es.argv[0] = 33, es.argv[1] = 45, es.argv[2] = 1
+// suffix = 'm'
+typedef struct {
+    char prefix;                    // escape sequence prefix ( '[' or '(' );
+    char prefix2;                   // secondary prefix ( '?' );
+    char suffix;                    // escape sequence suffix
+    int argc;                    // escape sequence args count
+    int argv[MAX_ARG];           // escape sequence args
+    wchar_t args[MAX_STRARG];       // escape sequence string arg; length in argv[1]
+} SEQUENCE;
 
 // interpret the last escape sequence scanned by ansi_print()
 void ansi_output(TERM *term, SEQUENCE es)
