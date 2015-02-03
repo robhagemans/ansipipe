@@ -348,32 +348,28 @@ typedef struct {
     int height;
     int attr;
     HANDLE handle;
+    wchar_t hold;
 } TERM;
-
 
 COORD onebyone = { 1, 1 };
 COORD origin = { 0, 0 };
 
-wchar_t hold = 0;
-
-void console_put_char(HANDLE handle, wchar_t s)
+void console_put_char(TERM *term, wchar_t s)
 {
-    // TODO: we need to get hold of a TERM pointer, so all of this is already there
-    CONSOLE_SCREEN_BUFFER_INFO info;
-    GetConsoleScreenBufferInfo(handle, &info);
-    // do not advance cursor if we're on the last position of the screen buffer, to avoid unwanted scrolling.
-    if (!hold & info.dwCursorPosition.Y == info.dwSize.Y-1 && info.dwCursorPosition.X == info.dwSize.X-1) {
-        SMALL_RECT dest = { info.dwCursorPosition.X, info.dwCursorPosition.Y, info.dwCursorPosition.X, info.dwCursorPosition.Y };
+    if (!term->hold & term->row == term->height-1 && term->col == term->width-1) {
+        // do not advance cursor if we're on the last position of the 
+        // screen buffer, to avoid unwanted scrolling.
+        SMALL_RECT dest = { term->col, term->row, term->col, term->row };
         CHAR_INFO ch;
         ch.Char.UnicodeChar = s;
-        ch.Attributes = info.wAttributes;
-        WriteConsoleOutput(handle, &ch, onebyone, origin, &dest);
-        hold = s;
+        ch.Attributes = term->attr;
+        WriteConsoleOutput(term->handle, &ch, onebyone, origin, &dest);
+        term->hold = s;
     }
     else {
-        hold = 0;
+        term->hold = 0;
         long written;
-        WriteConsole(handle, &s, 1, &written, NULL);
+        WriteConsole(term->handle, &s, 1, &written, NULL);
     }    
 }
 
@@ -892,7 +888,6 @@ int ansi_input(char *buffer, long *count)
 // ============================================================================
 
 typedef struct {
-    HANDLE handle;
     SEQUENCE es;
     TERM term;
     U8BUF pbuf;
@@ -902,7 +897,6 @@ typedef struct {
 // initialise a new ansi sequence parser
 void parser_init(PARSER *p, HANDLE handle)
 {
-    p->handle = handle;
     p->state = 1;
     p->term.handle = handle;
     p->term.foreground = foreground_default;
@@ -935,10 +929,10 @@ void parser_print(PARSER *p, char *s, int buflen)
                 p->state = 2;
             }
             else {
-                wchar_t wc = u8buf_push(&(p->pbuf), p->term.concealed ? ' ' : *s);    
-                if (wc) console_put_char(p->handle, wc);
+                wchar_t wc = u8buf_push(&p->pbuf, p->term.concealed ? ' ' : *s);    
+                if (wc) console_put_char(&p->term, wc);
                 if (flags.onlcr && wc == L'\r') 
-                        console_put_char(p->handle, L'\n');
+                        console_put_char(&p->term, L'\n');
             }
             break;
         case 2:
