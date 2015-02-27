@@ -1,2 +1,3 @@
-import ansipipe
+from ansipipe import *
+
 
