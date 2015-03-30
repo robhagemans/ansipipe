@@ -1075,6 +1075,12 @@ void pipes_cout_thread(void *dummy)
     }
 }
 
+#ifdef SUPPRESS_STDERR
+
+void pipes_cerr_thread(void *dummy) {}
+
+#else
+
 // Thread function that handles incoming bytestreams to be outputed on stderr
 void pipes_cerr_thread(void *dummy) 
 {
@@ -1091,6 +1097,8 @@ void pipes_cerr_thread(void *dummy)
         else fprintf(stderr, "%s", buffer);
     }
 }
+
+#endif
 
 // Thread function that handles incoming bytestreams from stdin
 void pipes_cin_thread(void *dummy)
