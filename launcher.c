@@ -734,7 +734,7 @@ void ansi_output(TERM *term, SEQUENCE es)
                     flags.onlcr = true;
                 break;
             case 254:
-                // ANSIpipe-only: ESC]255;%sBEL: unset terminal property
+                // ANSIpipe-only: ESC]254;%sBEL: unset terminal property
                 if (!wcscasecmp(es.args, L"ECHO"))
                     flags.echo = false;
                 if (!wcscasecmp(es.args, L"ICRNL"))
@@ -1063,14 +1063,18 @@ void pipes_cout_thread(void *dummy)
     long count = 0;
     // this is 0 if redirected, -1 if not.
     // see http://stackoverflow.com/questions/2087775/how-do-i-detect-when-output-is-being-redirected
-    fpos_t pos;
-    fgetpos(stdout, &pos);
+    //fpos_t pos;
+    //fgetpos(stdout, &pos);
+    // the above fails in Win10. use this more elegant alternative
+    // see http://stackoverflow.com/questions/1169591/check-if-output-is-redirected
+    long dummy_mode;
+    int is_console = GetConsoleMode(handle_cout, &dummy_mode);
     PARSER p = { 0 };
     parser_init(&p, handle_cout);
     ConnectNamedPipe(cout_pipe, NULL);
     while (ReadFile(cout_pipe, buffer, IO_BUFLEN-1, &count, NULL)) {
         buffer[count] = 0;
-        if (pos) parser_print(&p, buffer, IO_BUFLEN);
+        if (is_console) parser_print(&p, buffer, IO_BUFLEN);
         else printf("%s", buffer);
     }
 }
@@ -1086,14 +1090,15 @@ void pipes_cerr_thread(void *dummy)
 {
     char buffer[IO_BUFLEN];
     long count = 0;
-    fpos_t pos;
-    fgetpos(stderr, &pos);
+    // see http://stackoverflow.com/questions/1169591/check-if-output-is-redirected
+    long dummy_mode;
+    int is_console = GetConsoleMode(handle_cout, &dummy_mode);
     PARSER p = { 0 };
     parser_init(&p, handle_cerr);
     ConnectNamedPipe(cerr_pipe, NULL);
     while (ReadFile(cerr_pipe, buffer, IO_BUFLEN-1, &count, NULL)) {
         buffer[count] = 0;
-        if (pos) parser_print(&p, buffer, IO_BUFLEN);
+        if (is_console) parser_print(&p, buffer, IO_BUFLEN);
         else fprintf(stderr, "%s", buffer);
     }
 }
