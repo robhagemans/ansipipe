@@ -32,22 +32,22 @@ if platform.system() == 'Windows':
         sys.stdin = sys.__stdin__
         sys.stderr = sys.__stderr__
         ok = False;
-        
+
     # minimal replacements for tty.setraw() and termios.tcsa
     # using ansipipe-only escape sequences
     ONLCR = 4
     ECHO = 8
     ICRNL = 256
-    
+
     TCSADRAIN = 1
-    
+
     termios_state = ICRNL | ECHO
-    
+
     if ok:
         def setraw(fd, dummy=None):
             """ Set raw terminal mode (Windows stub). """
             tcsetattr(fd, dummy, 0)
-        
+
         def tcsetattr(fd, dummy, attr):
             """ Set terminal attributes (Windows stub). """
             if (fd == sys.stdin.fileno()):
@@ -56,22 +56,21 @@ if platform.system() == 'Windows':
                 sys.stdout.write('\x1b]%d;ICRNL\x07' % (num + (attr & ICRNL != 0)))
                 sys.stdout.write('\x1b]%d;ONLCR\x07' % (num + (attr & ONLCR != 0)))
                 termios_state = attr
-        
+
         def tcgetattr(fd):
             """ Get terminal attributes (Windows stub). """
             if (fd == sys.stdin.fileno()):
                 return termios_state
             else:
                 return 0
-    
+
     else:
         def setraw(fd, dummy=None):
             pass
         def tcsetattr(fd, dummy, attr):
-            pass            
+            pass
         def tcgetattr(fd):
-            return 0                
-            
+            return 0
+
 else:
     ok = True;
-    

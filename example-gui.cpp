@@ -6,7 +6,7 @@
  * MSDN example code is licensed under the Microsoft Limited Public License
  * (see https://msdn.microsoft.com/en-us/cc300389.aspx).
  *
- * All modifications are (c) 2015 Rob Hagemans. 
+ * All modifications are (c) 2015 Rob Hagemans.
  * Source released under Microsoft limited Public License.
  */
 
@@ -44,9 +44,9 @@ int WINAPI WinMain(HINSTANCE hInstance,
                    int nCmdShow)
 {
     WNDCLASSEX wcex;
-    
+
     /***********************************************************************/
-    
+
     // the ANSI|pipe bit of the demo
     // if thsi fails, we have no console to write to
     // printfs will simply be ignored.
@@ -58,8 +58,8 @@ int WINAPI WinMain(HINSTANCE hInstance,
     std::cout << "Здравствуй, \x1b[1A\x1b[92mмир!\x1b[0m\x1b[2B ";
     std::cout << "Γεια σου \x1b[1A\x1b[94mκόσμε!\x1b[2B\x1b[0m\n";
 
-    // You could also get input, but if we put it right here it'll hold up 
-    // the creation of the main window. 
+    // You could also get input, but if we put it right here it'll hold up
+    // the creation of the main window.
 
     /***********************************************************************/
 
