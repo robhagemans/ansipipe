@@ -71,7 +71,7 @@ A Python app that uses `import ansipipe` can be run with:
 
 And this is what it looks like:
 
-![Screenshot of ANSI|pipe in action](/../screenshots/screenshot.png?raw=true)
+![Screenshot of ANSI|pipe in action](http://robhagemans.github.io/ansipipe/screenshots/screenshot.png)
 
 Be sure to enable a Unicode-aware terminal font, such as **Lucida Console** 
 which is available on Windows by default. (_Unfortunately it has no support 
