@@ -157,9 +157,5 @@ me know.
 
 ## Licence
 
-**ANSI|pipe** is free software. The launcher is released under the GNU GPL
-(version [2](http://www.gnu.org/licenses/gpl-2.0.html)
-or [3](http://www.gnu.org/licenses/gpl-3.0.html)) and Perl's
-[Artistic License](http://dev.perl.org/licenses/artistic.html).
-The linkable header files and the console examples are released under the [MIT license](http://opensource.org/licenses/MIT).
+**ANSI|pipe** is free software, licensed under the [Expat MIT licence](http://opensource.org/licenses/MIT).
 The GUI example is released under the [Microsoft Limited Public License](https://msdn.microsoft.com/en-us/cc300389.aspx).
