@@ -1,137 +1,17 @@
 /*
-ANSI|pipe SOURCE
-================
-ANSI|pipe is derived from the following sources:
-* Win32::Console::ANSI Perl extension by J-L Morel
-* dualsubsystem by gaber...@gmail.com, based on work by Richard Eperjesi
-* further additions and modifications by Rob Hagemans
+ANSI|pipe launcher
+Copyright (c) 2015 Rob Hagemans.
 
-The original copyright and licence notices for the contributing sources
-can be found below.
-
-The modifications are copyright (c) 2015 Rob Hagemans.
-The resulting file is released under the terms below.
-
-LICENCE
-
-This program is free software; you can redistribute it and/or modify
-it under the terms of
-1)  the GNU General Public License, version 2,
-    as published by the Free Software Foundation; or, at your option,
-2)  the GNU General Public License, version 3, 
-    as published by the Free Software Foundation; or, at your option,
-3)  the Artistic License as distributed with the Perl Kit.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. 
-*/
-
-/*
-ORIGINAL SOURCE: Win32::Console::ANSI
-=====================================
-The following is a list of modifications of Win32::Console::ANSI
-(RH 2015-01-27) 
--   Remove DLL injection and API hooking code
--   Remove Win9x support code
--   Add #define macros to allow compilation under MinGW GCC
-(RH 2015-01-28) 
--   Change signature of ParseAndPrint to work with one hDev only
--   Remove codepage-conversion sequences ('\x1b(')
-(RH 2015-01-30)
--   Add escape sequences for scrolling, terminal resizing, xterm bright colours
--   Add ANSI input routine (sends sequences for special keys)
--   Refactor code to allow multiple parsers (for cerr and cout)
-In other words, I have extracted only the escape sequence parser from the
-original source and then modified that.
-
-Below are the original copyright and licence notices of Win32::Console::ANSI.
-Please note that the present modified file is released under slightly more 
-restrictive terms, which are stated above. - RH
-
-AUTHOR
-
-J-L Morel <jl_morel@bribes.org>
-Home page: http://www.bribes.org/perl/wANSIConsole.html
-
-COPYRIGHT
-
+Win32::Console::ANSI
 Copyright (c) 2003-2014 J-L Morel. All rights reserved.
+This code has been relicensed in 2015 by kind permission from J-L Morel.
 
-LICENCE
+dualsubsystem
+The author is identified on Google Code as gaber...@gmail.com, https://code.google.com/u/112032256711997475328/.
+dualsubsystem is an update on a code written by Richard Eperjesi.
 
-This distribution is free software; you can redistribute it and/or modify it
-under the same terms as Perl itself, i.e. under the terms of either:
-
-a) the GNU General Public License as published by the Free Software Foundation,
-   either version 1, or (at your option) any later version; or
-
-b) the Artistic License as distributed with the Perl Kit.
-
-This distribution is distributed in the hope that it will be useful, but WITHOUT
-ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-FOR A PARTICULAR PURPOSE.  See either the GNU General Public License or the
-Artistic License for more details.
-
-You should have received a copy of the GNU General Public License with this
-distribution in the file named "Copying".  If not, write to the Free Software
-Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307, USA or
-visit their web page on the internet at http://www.gnu.org/licenses/gpl.html or
-the Perl web page at http://dev.perl.org/licenses/gpl1.html.
-
-You should also have received a copy of the Artistic License with this
-distribution, in the file named "Artistic".  If not, visit the Perl web page on
-the internet at http://dev.perl.org/licenses/artistic.html.
-*/
-
-/*
-ORIGINAL SOURCE: dualsubsystem
-==============================
-The following is a list of modifications to dualsysystem
-(RH 2015-01-28) 
--   Change whitespace and naming conventions for readability
--   Replace command-line parsing code
--   Implement Unicode support, UTF8 conversions
--   Send stdout pipe output to ansi parser
-
-dualsubsystem can be found at https://code.google.com/p/dualsubsystem/.
-I have not been able to find a copyright notice by dualsubsystem's author,
-who is identified on Google Code as 
-gaber...@gmail.com, https://code.google.com/u/112032256711997475328/. 
-Below follow the licence and notices from this project that appear relevant.
-Please note that the present modified file is released under more 
-restrictive terms, which are stated above. - RH
-
-SUMMARY
-
-dualsubsystem is an update on a code written by Richard Eperjesi that provides 
-the best of both worlds with the trick of using a same-named ".com" executable 
-to handle the stdin/stdout/stderr redirection to the active console.
-
-MIT LICENSE
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
+Licensed under the Expat MIT licence.
+See LICENSE.md or http://opensource.org/licenses/mit-license.php
 */
 
 #ifndef _WIN32
@@ -205,7 +85,7 @@ int foregroundcolor[16] = {
       FOREGROUND_BLUE|FOREGROUND_GREEN,                       // cyan
       FOREGROUND_WHITE,                                       // light grey
       FOREGROUND_BLACK|FOREGROUND_INTENSITY,                  // dark grey
-      FOREGROUND_RED|FOREGROUND_INTENSITY,                    // bright red 
+      FOREGROUND_RED|FOREGROUND_INTENSITY,                    // bright red
       FOREGROUND_GREEN|FOREGROUND_INTENSITY,                  // bright green
       FOREGROUND_RED|FOREGROUND_GREEN|FOREGROUND_INTENSITY,   // bright yellow
       FOREGROUND_BLUE|FOREGROUND_INTENSITY ,                  // bright blue
@@ -358,7 +238,7 @@ COORD origin = { 0, 0 };
 void console_put_char(TERM *term, wchar_t s)
 {
     if (!term->hold & term->row == term->height-1 && term->col == term->width-1) {
-        // do not advance cursor if we're on the last position of the 
+        // do not advance cursor if we're on the last position of the
         // screen buffer, to avoid unwanted scrolling.
         SMALL_RECT dest = { term->col, term->row, term->col, term->row };
         CHAR_INFO ch;
@@ -371,7 +251,7 @@ void console_put_char(TERM *term, wchar_t s)
         term->hold = 0;
         long written;
         WriteConsole(term->handle, &s, 1, &written, NULL);
-    }    
+    }
 }
 
 void console_fill(TERM *term, int x, int y, int len)
@@ -502,23 +382,23 @@ void ansi_output(TERM *term, SEQUENCE es)
                     term->concealed = false;
                     break;
                 }
-                if ((100 <= es.argv[i]) && (es.argv[i] <= 107)) 
+                if ((100 <= es.argv[i]) && (es.argv[i] <= 107))
                     term->background = es.argv[i] - 100 + 8;
-                else if ((90 <= es.argv[i]) && (es.argv[i] <= 97)) 
+                else if ((90 <= es.argv[i]) && (es.argv[i] <= 97))
                     term->foreground = es.argv[i] - 90 + 8;
                 else if ((40 <= es.argv[i]) && (es.argv[i] <= 47))
                     term->background = es.argv[i] - 40;
-                else if ((30 <= es.argv[i]) && (es.argv[i] <= 37)) 
+                else if ((30 <= es.argv[i]) && (es.argv[i] <= 37))
                     term->foreground = es.argv[i] - 30;
             }
             int new_attr;
-            if (term->rvideo) 
+            if (term->rvideo)
                 new_attr = foregroundcolor[term->background] | backgroundcolor[term->foreground];
-            else 
+            else
                 new_attr = foregroundcolor[term->foreground] | backgroundcolor[term->background];
-            if (term->bold) 
+            if (term->bold)
                 new_attr |= FOREGROUND_INTENSITY;
-            if (term->underline) 
+            if (term->underline)
                 new_attr |= BACKGROUND_INTENSITY;
             SetConsoleTextAttribute(term->handle, new_attr);
             return;
@@ -526,16 +406,16 @@ void ansi_output(TERM *term, SEQUENCE es)
             if (es.argc == 0) es.argv[es.argc++] = 0;   // ESC[J == ESC[0J
             if (es.argc != 1) return;
             switch (es.argv[0]) {
-            case 0:              
+            case 0:
                 // ESC[0J erase from cursor to end of display
-                console_fill(term, term->col, term->row, 
+                console_fill(term, term->col, term->row,
                         (term->height-term->row-1)*term->width + term->width-term->col-1);
                 return;
-            case 1:              
+            case 1:
                 // ESC[1J erase from start to cursor.
                 console_fill(term, 0, 0, term->row*term->width + term->col + 1);
                 return;
-            case 2:              
+            case 2:
                 // ESC[2J Clear screen and home cursor
                 console_fill(term, 0, 0, term->width * term->height);
                 console_set_pos(term, 0, 0);
@@ -547,15 +427,15 @@ void ansi_output(TERM *term, SEQUENCE es)
             if (es.argc == 0) es.argv[es.argc++] = 0;   // ESC[K == ESC[0K
             if (es.argc != 1) return;
             switch (es.argv[0]) {
-            case 0:              
+            case 0:
                 // ESC[0K Clear to end of line
                 console_fill(term, term->col, term->row, term->end - term->col + 1);
                 return;
-            case 1:              
+            case 1:
                 // ESC[1K Clear from start of line to cursor
                 console_fill(term, 0, term->row, term->col + 1);
                 return;
-            case 2:              
+            case 2:
                 // ESC[2K Clear whole line.
                 console_fill(term, 0, term->row, term->width);
                 return;
@@ -566,7 +446,7 @@ void ansi_output(TERM *term, SEQUENCE es)
             // ESC[#L Insert # blank lines.
             if (es.argc == 0) es.argv[es.argc++] = 1;   // ESC[L == ESC[1L
             if (es.argc != 1) return;
-            console_scroll(term, 0, term->row, term->width-1, term->height-1, 
+            console_scroll(term, 0, term->row, term->width-1, term->height-1,
                                  0, term->row+es.argv[0]);
             console_fill(term, 0, term->row, term->width*es.argv[0]);
             return;
@@ -576,8 +456,8 @@ void ansi_output(TERM *term, SEQUENCE es)
             if (es.argc != 1) return;
             if (es.argv[0] > term->height - term->row)
                 es.argv[0] = term->height - term->row;
-            console_scroll(term,  
-                            0, term->row+es.argv[0], term->width-1, term->height-1, 
+            console_scroll(term,
+                            0, term->row+es.argv[0], term->width-1, term->height-1,
                             0, term->row);
             console_fill(term, 0, term->height-es.argv[0], term->width*es.argv[0]);
             return;
@@ -588,7 +468,7 @@ void ansi_output(TERM *term, SEQUENCE es)
             if (term->col + es.argv[0] > term->width - 1)
                 es.argv[0] = term->width - term->col;
             console_scroll(term,
-                    term->col+es.argv[0], term->row, term->width-1, term->row, 
+                    term->col+es.argv[0], term->row, term->width-1, term->row,
                     term->col, term->row);
             console_fill(term, term->width-es.argv[0], term->row, es.argv[0]);
             return;
@@ -599,7 +479,7 @@ void ansi_output(TERM *term, SEQUENCE es)
             if (term->col + es.argv[0] > term->width - 1)
                 es.argv[0] = term->width - term->col;
             console_scroll(term,
-                    term->col, term->row, term->width-1-es.argv[0], term->row, 
+                    term->col, term->row, term->width-1-es.argv[0], term->row,
                     term->col+es.argv[0], term->row);
             console_fill(term, term->col, term->row, es.argv[0]);
             return;
@@ -707,7 +587,7 @@ void ansi_output(TERM *term, SEQUENCE es)
             new_screen.Right = es.argv[2] - 1;
             SetConsoleScreenBufferSize(term->handle, new_size);
             SetConsoleWindowInfo(term->handle, true, &new_screen);
-            // do it twice, because one call can only make the console bigger 
+            // do it twice, because one call can only make the console bigger
             // and the other call can only make it smaller. plus I am lazy.
             SetConsoleScreenBufferSize(term->handle, new_size);
             SetConsoleWindowInfo(term->handle, true, &new_screen);
@@ -724,7 +604,7 @@ void ansi_output(TERM *term, SEQUENCE es)
             case 255:
                 // ANSIpipe-only: ESC]255;%sBEL: set terminal property
                 // properties supported: ECHO, ICRNL, ONLCR
-                // not thread-safe, so a bit unpredictable 
+                // not thread-safe, so a bit unpredictable
                 // if you're using stdout and stderr at the same time.
                 if (!wcscasecmp(es.args, L"ECHO"))
                     flags.echo = true;
@@ -742,7 +622,7 @@ void ansi_output(TERM *term, SEQUENCE es)
                 else if (!wcscasecmp(es.args, L"ONLCR"))
                     flags.onlcr = false;
                 break;
-        }            
+        }
     }
 }
 
@@ -750,7 +630,7 @@ void ansi_output(TERM *term, SEQUENCE es)
 // length of buffer must be IO_BUFLEN
 int ansi_input(char *buffer, long *count)
 {
-    // event buffer size: 
+    // event buffer size:
     // -  for utf8, buflen/4 is OK as one wchar is at most 4 chars of utf8
     // -  escape codes are at most 5 ascii-128 wchars; translate into 5 chars
     // so buflen/5 events should fit in buflen wchars and buflen utf8 chars.
@@ -853,13 +733,13 @@ int ansi_input(char *buffer, long *count)
                 }
                 if (flags.icrnl) {
                     // replace last char CR -> LF
-                    if (wstr.buffer[wstr.count-1] == L'\r') 
+                    if (wstr.buffer[wstr.count-1] == L'\r')
                         wstr.buffer[wstr.count-1] = L'\n';
                 }
             }
         }
     }
-    // find UTF8 string length    
+    // find UTF8 string length
     int length = WideCharToMultiByte(CP_UTF8, 0, wide_buffer, -1, NULL, 0, NULL, NULL);
     // safety check
     if (length >= IO_BUFLEN) {
@@ -929,9 +809,9 @@ void parser_print(PARSER *p, char *s, int buflen)
                 p->state = 2;
             }
             else {
-                wchar_t wc = u8buf_push(&p->pbuf, p->term.concealed ? ' ' : *s);    
+                wchar_t wc = u8buf_push(&p->pbuf, p->term.concealed ? ' ' : *s);
                 if (wc) console_put_char(&p->term, wc);
-                if (flags.onlcr && wc == L'\r') 
+                if (flags.onlcr && wc == L'\r')
                         console_put_char(&p->term, L'\n');
             }
             break;
@@ -997,7 +877,7 @@ void parser_print(PARSER *p, char *s, int buflen)
             else if (*s == ';') {
                 p->es.argc = 2;
                 p->es.argv[1] = 0;
-                p->state = 6;    
+                p->state = 6;
             }
             else {
                 p->es.suffix = *s;
@@ -1022,7 +902,7 @@ void parser_print(PARSER *p, char *s, int buflen)
 
 
 // ============================================================================
-// named pipes 
+// named pipes
 // ============================================================================
 
 // pipe globals
@@ -1034,29 +914,29 @@ HANDLE cin_pipe;
 HANDLE cerr_pipe;
 
 // Create named pipes for stdin, stdout and stderr
-int pipes_create(long pid) 
+int pipes_create(long pid)
 {
     wchar_t name[ANSIPIPE_NAME_LEN];
     _snwprintf(name, ANSIPIPE_NAME_LEN, ANSIPIPE_POUT_FMT, pid);
-    cout_pipe = CreateNamedPipe(name, PIPE_ACCESS_INBOUND, 
-                        PIPE_TYPE_BYTE | PIPE_READMODE_BYTE, 1, IO_BUFLEN, 
+    cout_pipe = CreateNamedPipe(name, PIPE_ACCESS_INBOUND,
+                        PIPE_TYPE_BYTE | PIPE_READMODE_BYTE, 1, IO_BUFLEN,
                         IO_BUFLEN, PIPES_TIMEOUT, NULL);
     if (INVALID_HANDLE_VALUE == cout_pipe) return 1;
     _snwprintf(name, ANSIPIPE_NAME_LEN, ANSIPIPE_PIN_FMT, pid);
-    cin_pipe = CreateNamedPipe(name, PIPE_ACCESS_OUTBOUND, 
-                        PIPE_TYPE_BYTE | PIPE_READMODE_BYTE, 1, IO_BUFLEN, 
+    cin_pipe = CreateNamedPipe(name, PIPE_ACCESS_OUTBOUND,
+                        PIPE_TYPE_BYTE | PIPE_READMODE_BYTE, 1, IO_BUFLEN,
                         IO_BUFLEN, PIPES_TIMEOUT, NULL);
     if (INVALID_HANDLE_VALUE == cin_pipe) return 1;
     _snwprintf(name, ANSIPIPE_NAME_LEN, ANSIPIPE_PERR_FMT, pid);
-    cerr_pipe = CreateNamedPipe(name, PIPE_ACCESS_INBOUND, 
-                        PIPE_TYPE_BYTE | PIPE_READMODE_BYTE, 1, IO_BUFLEN, 
+    cerr_pipe = CreateNamedPipe(name, PIPE_ACCESS_INBOUND,
+                        PIPE_TYPE_BYTE | PIPE_READMODE_BYTE, 1, IO_BUFLEN,
                         IO_BUFLEN, PIPES_TIMEOUT, NULL);
     if (INVALID_HANDLE_VALUE == cerr_pipe) return 1;
     return 0;
 }
 
 // Thread function that handles incoming bytestreams to be output on stdout
-void pipes_cout_thread(void *dummy) 
+void pipes_cout_thread(void *dummy)
 {
     // we're sending UTF-8 through these pipes
     char buffer[IO_BUFLEN];
@@ -1082,7 +962,7 @@ void pipes_cerr_thread(void *dummy) {}
 #else
 
 // Thread function that handles incoming bytestreams to be outputed on stderr
-void pipes_cerr_thread(void *dummy) 
+void pipes_cerr_thread(void *dummy)
 {
     char buffer[IO_BUFLEN];
     long count = 0;
@@ -1133,7 +1013,7 @@ int pipes_start(PROCESS_INFORMATION pinfo)
     return 0;
 }
 
-void pipes_close()    
+void pipes_close()
 {
     // Give pipes a chance to flush
     Sleep(100);
@@ -1144,7 +1024,7 @@ void pipes_close()
 
 
 // ============================================================================
-// child process 
+// child process
 // ============================================================================
 
 int proc_spawn(wchar_t *cmd_line, PROCESS_INFORMATION *pinfo)
@@ -1152,7 +1032,7 @@ int proc_spawn(wchar_t *cmd_line, PROCESS_INFORMATION *pinfo)
     STARTUPINFO sinfo;
     memset(&sinfo, 0, sizeof(STARTUPINFO));
     sinfo.cb = sizeof(STARTUPINFO);
-    if (!CreateProcess(NULL, cmd_line, NULL, NULL, FALSE, 
+    if (!CreateProcess(NULL, cmd_line, NULL, NULL, FALSE,
                        CREATE_SUSPENDED, NULL, NULL, &sinfo, pinfo)) {
         fprintf(stderr, "ERROR: Could not create process %S", cmd_line);
         return 1;
@@ -1222,7 +1102,7 @@ int build_command_line(int argc, char *argv[], wchar_t *buffer, long buflen)
     #ifdef ANSIPIPE_SINGLE
     wstr_write(&command_line, WSTR_SELFCALL, wcslen(WSTR_SELFCALL));
     #endif
-    
+
     // if the buffer is full, our command line is not ok
     if (!wstr_write(&command_line, L"", 0)) {
         fprintf(stderr, "ERROR: Command line too long.\n");
@@ -1238,8 +1118,8 @@ int ansipipe_launcher(int argc, char *argv[], long *exit_code)
     #ifdef ANSIPIPE_SINGLE
     if (!strcmp(argv[argc-1], STR_SELFCALL))
         return 0;
-    #endif    
-    
+    #endif
+
     /* initialise globals */
     // stdio handles
     handle_cout = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -1254,9 +1134,9 @@ int ansipipe_launcher(int argc, char *argv[], long *exit_code)
 
     /* open, run, and close */
     wchar_t cmd_line[ARG_BUFLEN];
-    PROCESS_INFORMATION pinfo;    
+    PROCESS_INFORMATION pinfo;
     if (build_command_line(argc, argv, cmd_line, ARG_BUFLEN) == 0 &&
-                proc_spawn(cmd_line, &pinfo) == 0 && 
+                proc_spawn(cmd_line, &pinfo) == 0 &&
                 pipes_start(pinfo) == 0) {
         proc_join(pinfo, exit_code);
         pipes_close();
@@ -1266,13 +1146,13 @@ int ansipipe_launcher(int argc, char *argv[], long *exit_code)
     SetConsoleMode(handle_cin, save_mode);
     SetConsoleTextAttribute(handle_cout, save_console.wAttributes);
     SetConsoleScreenBufferSize(handle_cout, save_console.dwSize);
-    
+
     /* exit and signal to caller that we've run as launcher */
     return 1;
 }
 
 #ifndef ANSIPIPE_SINGLE
-int main(int argc, char *argv[]) 
+int main(int argc, char *argv[])
 {
     long exit_code = 0;
     ansipipe_launcher(argc, argv, &exit_code);
@@ -1281,4 +1161,3 @@ int main(int argc, char *argv[])
 #endif
 
 #endif
-
