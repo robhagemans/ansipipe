@@ -3,8 +3,8 @@
 
 """
 This script demonstrates how to use ANSI|pipe in a console-based Python project.
-Under Windows, if the script is run through the ANSI|pipe launcher, UTF-8 
-and ANSI escape sequences will shown correctly; if the script is run on its 
+Under Windows, if the script is run through the ANSI|pipe launcher, UTF-8
+and ANSI escape sequences will shown correctly; if the script is run on its
 own, ANSI and UTF-8 will not be parsed.
 You can run this script on Unix without any changes.
 """
@@ -21,6 +21,3 @@ print "Γεια σου \x1b[1A\x1b[94mκόσμε!\x1b[2B\x1b[0m\n",
 
 inp = raw_input("Type something: ")
 print "You typed \x1b[45;1m%s\x1b[0m.\n" % inp,
-
-
-

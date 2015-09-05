@@ -1,7 +1,4 @@
 /*
-ANSI|pipe launcher
-Copyright (c) 2015 Rob Hagemans.
-
 Win32::Console::ANSI
 Copyright (c) 2003-2014 J-L Morel. All rights reserved.
 This code has been relicensed in 2015 by kind permission from J-L Morel.
@@ -614,7 +611,7 @@ void ansi_output(TERM *term, SEQUENCE es)
                     flags.onlcr = true;
                 break;
             case 254:
-                // ANSIpipe-only: ESC]255;%sBEL: unset terminal property
+                // ANSIpipe-only: ESC]254;%sBEL: unset terminal property
                 if (!wcscasecmp(es.args, L"ECHO"))
                     flags.echo = false;
                 if (!wcscasecmp(es.args, L"ICRNL"))
@@ -938,19 +935,19 @@ int pipes_create(long pid)
 // Thread function that handles incoming bytestreams to be output on stdout
 void pipes_cout_thread(void *dummy)
 {
-    // we're sending UTF-8 through these pipes
-    char buffer[IO_BUFLEN];
-    long count = 0;
-    // this is 0 if redirected, -1 if not.
-    // see http://stackoverflow.com/questions/2087775/how-do-i-detect-when-output-is-being-redirected
-    fpos_t pos;
-    fgetpos(stdout, &pos);
+    // see http://stackoverflow.com/questions/1169591/check-if-output-is-redirected
+    long dummy_mode;
+    int is_console = GetConsoleMode(handle_cout, &dummy_mode);
+    // prepare parser
     PARSER p = { 0 };
     parser_init(&p, handle_cout);
     ConnectNamedPipe(cout_pipe, NULL);
+    // we're sending UTF-8 through these pipes
+    char buffer[IO_BUFLEN];
+    long count = 0;
     while (ReadFile(cout_pipe, buffer, IO_BUFLEN-1, &count, NULL)) {
         buffer[count] = 0;
-        if (pos) parser_print(&p, buffer, IO_BUFLEN);
+        if (is_console) parser_print(&p, buffer, IO_BUFLEN);
         else printf("%s", buffer);
     }
 }
@@ -964,16 +961,19 @@ void pipes_cerr_thread(void *dummy) {}
 // Thread function that handles incoming bytestreams to be outputed on stderr
 void pipes_cerr_thread(void *dummy)
 {
-    char buffer[IO_BUFLEN];
-    long count = 0;
-    fpos_t pos;
-    fgetpos(stderr, &pos);
+    // see http://stackoverflow.com/questions/1169591/check-if-output-is-redirected
+    long dummy_mode;
+    int is_console = GetConsoleMode(handle_cout, &dummy_mode);
+    // prepare parser
     PARSER p = { 0 };
     parser_init(&p, handle_cerr);
     ConnectNamedPipe(cerr_pipe, NULL);
+    // we're sending UTF-8 through these pipes
+    char buffer[IO_BUFLEN];
+    long count = 0;
     while (ReadFile(cerr_pipe, buffer, IO_BUFLEN-1, &count, NULL)) {
         buffer[count] = 0;
-        if (pos) parser_print(&p, buffer, IO_BUFLEN);
+        if (is_console) parser_print(&p, buffer, IO_BUFLEN);
         else fprintf(stderr, "%s", buffer);
     }
 }
@@ -983,13 +983,26 @@ void pipes_cerr_thread(void *dummy)
 // Thread function that handles incoming bytestreams from stdin
 void pipes_cin_thread(void *dummy)
 {
+    // see http://stackoverflow.com/questions/1169591/check-if-output-is-redirected
+    long dummy_mode;
+    int is_console = GetConsoleMode(handle_cin, &dummy_mode);
+    // we're receiving UTF-8 through these pipes
     char buffer[IO_BUFLEN];
     long countr = 0;
     long countw = 0;
     ConnectNamedPipe(cin_pipe, NULL);
     for(;;) {
-        if (ansi_input(buffer, &countr) != 0)
-            break;
+        if (is_console) {
+            if (ansi_input(buffer, &countr) != 0)
+                break;
+        }
+        else {
+            // read directly from redirected stdin
+            if (!fgets(buffer, IO_BUFLEN, stdin))
+                break;
+            // fgets returns null-terminated string
+            countr = strlen(buffer);
+        }
         if (!WriteFile(cin_pipe, buffer, countr, &countw, NULL))
             break;
     }
