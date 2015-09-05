@@ -149,13 +149,11 @@ All modifications and additions to this project are by Rob Hagemans. I'm also
 responsible for all the bugs in the resulting code. If you find one, please let
 me know.  
 
-## Copyrights
+## Copyrights and licence
 
 **Win32::Console::ANSI**, copyright (c) 2003-2014 J-L Morel.  
 **dualsubsystem**, copyright (c) `gaber...@gmail.com` and Richard Eperjesi.  
 **ANSI|pipe**, copyright (c) 2015 Rob Hagemans.  
 
-## Licence
-
-**ANSI|pipe** is free software, licensed under the [Expat MIT licence](http://opensource.org/licenses/MIT).
+**ANSI|pipe** is free software, licensed under the [Expat MIT licence](http://opensource.org/licenses/MIT).  
 The GUI example is released under the [Microsoft Limited Public License](https://msdn.microsoft.com/en-us/cc300389.aspx).

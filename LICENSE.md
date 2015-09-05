@@ -1,8 +1,8 @@
 Licence terms for ANSI|pipe
 ============================
-ANSI|pipe copyright (c) 2015 Rob Hagemans.
-Win32::Console::ANSI copyright (c) 2003-2014 J-L Morel.
-dualsubsystem copyright (c) gaber...@gmail.com and Richard Eperjesi.
+ANSI|pipe copyright (c) 2015 Rob Hagemans.  
+Win32::Console::ANSI copyright (c) 2003-2014 J-L Morel.  
+dualsubsystem copyright (c) gaber...@gmail.com and Richard Eperjesi.  
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -26,8 +26,8 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 Licence terms for ANSI|pipe GUI example `example-gui.cpp`
 =========================================================
-MSDN Example Code (c) Microsoft Corporation
-Modifications copyright (c) 2015 Rob Hagemans
+MSDN Example Code (c) Microsoft Corporation  
+Modifications copyright (c) 2015 Rob Hagemans  
 
 Microsoft Limited Public License (Ms-LPL)
 
