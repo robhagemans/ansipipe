@@ -7,7 +7,7 @@
  * (see https://msdn.microsoft.com/en-us/cc300389.aspx).
  *
  * All modifications are (c) 2015 Rob Hagemans.
- * Source released under Microsoft limited Public License.
+ * Source released under Microsoft Limited Public License.
  */
 
 // GT_HelloWorldWin32.cpp
@@ -48,11 +48,11 @@ int WINAPI WinMain(HINSTANCE hInstance,
     /***********************************************************************/
 
     // the ANSI|pipe bit of the demo
-    // if thsi fails, we have no console to write to
+    // if this fails, we have no console to write to
     // printfs will simply be ignored.
     ansipipe_init();
 
-    // we can use the console evven if it's a gui app
+    // we can use the console even if it's a gui app
     std::cout << "\x1b[104;1mANSI\x1b[0m|\x1b[94;1mpipe\x1b[0m GUI example\n";
     std::cout << "\n\n\n\n\x1b[2AHello, \x1b[1A\x1b[91mWorld!\x1b[2B\x1b[0m";
     std::cout << "Здравствуй, \x1b[1A\x1b[92mмир!\x1b[0m\x1b[2B ";
