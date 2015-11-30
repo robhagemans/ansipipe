@@ -232,6 +232,8 @@ typedef struct {
 COORD onebyone = { 1, 1 };
 COORD origin = { 0, 0 };
 
+bool soft_suppress_stderr = false;
+
 void console_put_char(TERM *term, wchar_t s)
 {
     if (!term->hold & term->row == term->height-1 && term->col == term->width-1) {
@@ -603,21 +605,26 @@ void ansi_output(TERM *term, SEQUENCE es)
                 // properties supported: ECHO, ICRNL, ONLCR
                 // not thread-safe, so a bit unpredictable
                 // if you're using stdout and stderr at the same time.
+                // special property: SUPPSTERR - suppress stderr
                 if (!wcscasecmp(es.args, L"ECHO"))
                     flags.echo = true;
-                if (!wcscasecmp(es.args, L"ICRNL"))
+                else if (!wcscasecmp(es.args, L"ICRNL"))
                     flags.icrnl = true;
                 else if (!wcscasecmp(es.args, L"ONLCR"))
                     flags.onlcr = true;
+                else if (!wcscasecmp(es.args, L"SUPPSTDERR"))
+                    soft_suppress_stderr = true;
                 break;
             case 254:
                 // ANSIpipe-only: ESC]254;%sBEL: unset terminal property
                 if (!wcscasecmp(es.args, L"ECHO"))
                     flags.echo = false;
-                if (!wcscasecmp(es.args, L"ICRNL"))
+                else if (!wcscasecmp(es.args, L"ICRNL"))
                     flags.icrnl = false;
                 else if (!wcscasecmp(es.args, L"ONLCR"))
                     flags.onlcr = false;
+                else if (!wcscasecmp(es.args, L"SUPPSTDERR"))
+                    soft_suppress_stderr = false;
                 break;
         }
     }
@@ -973,8 +980,11 @@ void pipes_cerr_thread(void *dummy)
     long count = 0;
     while (ReadFile(cerr_pipe, buffer, IO_BUFLEN-1, &count, NULL)) {
         buffer[count] = 0;
-        if (is_console) parser_print(&p, buffer, IO_BUFLEN);
-        else fprintf(stderr, "%s", buffer);
+        // for suppressed stderr, read the file but just ignore the contents
+        if (!soft_suppress_stderr) {
+            if (is_console) parser_print(&p, buffer, IO_BUFLEN);
+            else fprintf(stderr, "%s", buffer);
+        }
     }
 }
 

@@ -65,6 +65,11 @@ if platform.system() == 'Windows':
             else:
                 return 0
 
+        def suppress_stderr(do_suppress=True):
+            """ Signal to suppress output of stderr stream. """
+            num = 255 if do_suppress else 254
+            sys.stdout.write('\x1b]%d;SUPPSTDERR\x07' % num)
+
     else:
         def setraw(fd, dummy=None):
             pass
@@ -72,6 +77,8 @@ if platform.system() == 'Windows':
             pass
         def tcgetattr(fd):
             return 0
+        def suppress_stderr(do_suppress=True):
+            pass
 
 else:
     ok = True;
