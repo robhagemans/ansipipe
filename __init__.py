@@ -1,3 +1,3 @@
-from ansipipe import *
+from . import *
 
 
