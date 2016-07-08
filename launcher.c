@@ -225,7 +225,6 @@ typedef struct {
     int height;
     int attr;
     HANDLE handle;
-    wchar_t hold;
     int end;
 } TERM;
 
@@ -236,7 +235,7 @@ bool soft_suppress_stderr = false;
 
 void console_put_char(TERM *term, wchar_t s)
 {
-    if (!term->hold & term->row == term->height-1 && term->col == term->width-1) {
+    if (term->col >= term->width-1) {
         // do not advance cursor if we're on the last position of the
         // screen buffer, to avoid unwanted scrolling.
         SMALL_RECT dest = { term->col, term->row, term->col, term->row };
@@ -244,10 +243,8 @@ void console_put_char(TERM *term, wchar_t s)
         ch.Char.UnicodeChar = s;
         ch.Attributes = term->attr;
         WriteConsoleOutput(term->handle, &ch, onebyone, origin, &dest);
-        term->hold = s;
     }
     else {
-        term->hold = 0;
         long written;
         WriteConsole(term->handle, &s, 1, &written, NULL);
     }
