@@ -1076,8 +1076,6 @@ void proc_join(PROCESS_INFORMATION pinfo, long *exit_code)
 
 // buffer for command-line arguments to child process. Win32 max is 8K
 #define ARG_BUFLEN 8192
-// max length of single argument. Twice MAX_PATH (260) seems long enough.
-#define CONV_BUFLEN 512
 
 // self-call command line flag
 #define STR_SELFCALL "ANSIPIPE_SELF_CALL"
