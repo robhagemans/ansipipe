@@ -1087,7 +1087,7 @@ void proc_join(PROCESS_INFORMATION pinfo, long *exit_code)
 #define WSTR_SELFCALL L"ANSIPIPE_SELF_CALL"
 
 // create command line for child process
-int build_command_line(int argc, char *argv[], wchar_t *buffer, long buflen)
+int build_command_line(wchar_t *buffer, long buflen)
 {
     // start with empty string
     WSTR command_line = wstr_create_empty(buffer, buflen);
@@ -1097,32 +1097,41 @@ int build_command_line(int argc, char *argv[], wchar_t *buffer, long buflen)
     // not null-terminated on XP
     module_name[MAX_PATH] = 0;
     int module_len = wcslen(module_name);
+    // write name of child executable to command line in quotes
     #ifdef ANSIPIPE_SINGLE
+    wstr_write(&command_line, L"""", 1);
     wstr_write(&command_line, module_name, module_len);
-    wstr_write(&command_line, L" ", 1);
+    wstr_write(&command_line, L""" ", 2);
     #else
-    // only call X.EXE if we're named X.COM
-    // if we're an EXE the first argument is the child executable, so skip this
+    // call X.EXE if we're named X.COM
+    // if we're X.EXE the first argument already is the child executable, so skip this step
     if (module_len > 4 && wcscasecmp(module_name + module_len - 4, L".exe")) {
         module_name[module_len-4] = 0;
+        wstr_write(&command_line, L"""", 1);
         wstr_write(&command_line, module_name, module_len-4);
-        wstr_write(&command_line, L".exe ", 5);
+        wstr_write(&command_line, L".exe"" ", 6);
     }
     #endif
-    // write all arguments to child command line
-    int i = 0;
-    wchar_t wide_buffer[CONV_BUFLEN+1];
-    for (i = 1; i < argc; ++i) {
-        // convert UTF-8 -> UTF-16. length includes NUL.
-        long length = MultiByteToWideChar(CP_UTF8, 0, argv[i], -1, wide_buffer, CONV_BUFLEN);
-        if (!length) {
-            fprintf(stderr, "ERROR: Command line argument too long.\n");
-            return 1;
-        }
-        wstr_write(&command_line, wide_buffer, length-1);
-        wstr_write(&command_line, L" ", 1);
+    // input command line
+    wchar_t *orig_command_line;
+    orig_command_line = GetCommandLineW();
+    // find length of first argument including quotes, if any
+    int argc;
+    wchar_t **argv = CommandLineToArgvW(orig_command_line, &argc);
+    if (!argv) {
+        fprintf(stderr, "ERROR: Could not parse command line.");
     }
+    int skip_len = wcslen(argv[0]) + 1;
+    if (orig_command_line[0] == L'"') {
+        // module name is quoted in command line: remove quotes too
+        skip_len += 2;
+    }
+    // copy original command line excluding module name into child command line
+    wstr_write(&command_line, orig_command_line+skip_len, wcslen(orig_command_line)-skip_len);
+
     #ifdef ANSIPIPE_SINGLE
+    // write the self-call flag
+    wstr_write(&command_line, L" ", 1);
     wstr_write(&command_line, WSTR_SELFCALL, wcslen(WSTR_SELFCALL));
     #endif
 
@@ -1158,7 +1167,7 @@ int ansipipe_launcher(int argc, char *argv[], long *exit_code)
     /* open, run, and close */
     wchar_t cmd_line[ARG_BUFLEN];
     PROCESS_INFORMATION pinfo;
-    if (build_command_line(argc, argv, cmd_line, ARG_BUFLEN) == 0 &&
+    if (build_command_line(cmd_line, ARG_BUFLEN) == 0 &&
                 proc_spawn(cmd_line, &pinfo) == 0 &&
                 pipes_start(pinfo) == 0) {
         proc_join(pinfo, exit_code);
