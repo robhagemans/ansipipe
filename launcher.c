@@ -234,7 +234,7 @@ COORD origin = { 0, 0 };
 
 void console_put_char(TERM *term, wchar_t s)
 {
-    if (term->col >= term->width-1) {
+    if (term->col >= term->width-1 && s != L'\n') {
         // do not advance cursor if we're on the last position of the
         // screen buffer, to avoid unwanted scrolling.
         SMALL_RECT dest = { term->col, term->row, term->col, term->row };
