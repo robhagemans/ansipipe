@@ -22,6 +22,7 @@ int main() {}
 #define UNICODE
 #define _WIN32_WINNT 0x0500
 #include <windows.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <process.h>
 #include <string.h>
@@ -936,59 +937,71 @@ int pipes_create(long pid)
     return 0;
 }
 
-// Thread function that handles incoming bytestreams to be output on stdout
-void pipes_cout_thread(void *dummy)
+// handle incoming pipes to be output on stdout or stderr
+void pipes_output_thread(void *dummy)
 {
+    // check if we're on a console or being redirected
     // see http://stackoverflow.com/questions/1169591/check-if-output-is-redirected
     long dummy_mode;
-    int is_console = GetConsoleMode(handle_cout, &dummy_mode);
-    // prepare parser
-    PARSER p = { 0 };
-    parser_init(&p, handle_cout);
+    int is_console_cout = GetConsoleMode(handle_cout, &dummy_mode);
+    int is_console_cerr = GetConsoleMode(handle_cerr, &dummy_mode);
+    // connect to named pipes
     ConnectNamedPipe(cout_pipe, NULL);
-    // we're sending UTF-8 through these pipes
-    char buffer[IO_BUFLEN];
-    long count = 0;
-    while (ReadFile(cout_pipe, buffer, IO_BUFLEN-1, &count, NULL)) {
-        buffer[count] = 0;
-        if (is_console) parser_print(&p, buffer, IO_BUFLEN);
-        else printf("%s", buffer);
-    }
-}
-
-#ifdef SUPPRESS_STDERR
-
-void pipes_cerr_thread(void *dummy) {}
-
-#else
-
-// Thread function that handles incoming bytestreams to be outputed on stderr
-void pipes_cerr_thread(void *dummy)
-{
-    // see http://stackoverflow.com/questions/1169591/check-if-output-is-redirected
-    long dummy_mode;
-    int is_console = GetConsoleMode(handle_cout, &dummy_mode);
-    // prepare parser
-    PARSER p = { 0 };
-    parser_init(&p, handle_cerr);
     ConnectNamedPipe(cerr_pipe, NULL);
-    // we're sending UTF-8 through these pipes
+    // prepare parsers
+    PARSER pout = { 0 };
+    PARSER perr = { 0 };
+    parser_init(&pout, handle_cout);
+    parser_init(&perr, handle_cerr);
+    // read buffer
     char buffer[IO_BUFLEN];
     long count = 0;
-    while (ReadFile(cerr_pipe, buffer, IO_BUFLEN-1, &count, NULL)) {
-        buffer[count] = 0;
-        // for suppressed stderr, read the file but just ignore the contents
-        if (!soft_suppress_stderr) {
-            if (is_console) parser_print(&p, buffer, IO_BUFLEN);
-            else fprintf(stderr, "%s", buffer);
+    bool cout_alive = true;
+    bool cerr_alive = true;
+    // read from stdout and stderr alternatively until exhausted
+    // in one thread to avoid them racing for console output
+    while (cout_alive && cerr_alive) {
+        // read from stdout if not closed and available
+        if (cout_alive) {
+            for(;;) {
+                long len = 0;
+                PeekNamedPipe(cout_pipe, NULL, 0, NULL, &len, NULL);
+                if (!len) {
+                    // microsleep to allow the pipe to fill
+                    usleep(1);
+                    break;
+                }
+                cout_alive = ReadFile(cout_pipe, buffer, IO_BUFLEN-1, &count, NULL);
+                if (cout_alive) {
+                    buffer[count] = 0;
+                    if (is_console_cout) parser_print(&pout, buffer, IO_BUFLEN);
+                    else printf("%s", buffer);
+                }
+            }
+        }
+        // read from stderr if not closed and available
+        if (cerr_alive) {
+            for(;;) {
+                long len = 0;
+                PeekNamedPipe(cerr_pipe, NULL, 0, NULL, &len, NULL);
+                if (!len) {
+                    // microsleep to allow the pipe to fill
+                    usleep(1);
+                    break;
+                }
+                cerr_alive = ReadFile(cerr_pipe, buffer, IO_BUFLEN-1, &count, NULL);
+                if (cerr_alive) {
+                    buffer[count] = 0;
+                    if (is_console_cerr) parser_print(&perr, buffer, IO_BUFLEN);
+                    else fprintf(stderr, "%s", buffer);
+                }
+            }
         }
     }
 }
 
-#endif
-
-// Thread function that handles incoming bytestreams from stdin
-void pipes_cin_thread(void *dummy)
+// handle input from stdin and send to outgoing pipe
+void pipes_input_thread(void *dummy)
 {
     // see http://stackoverflow.com/questions/1169591/check-if-output-is-redirected
     long dummy_mode;
@@ -1027,9 +1040,8 @@ int pipes_start(PROCESS_INFORMATION pinfo)
     SetConsoleMode(handle_cin, 0);
 
     // start the pipe threads
-    _beginthread(pipes_cin_thread, 0, NULL);
-    _beginthread(pipes_cout_thread, 0, NULL);
-    _beginthread(pipes_cerr_thread, 0, NULL);
+    _beginthread(pipes_input_thread, 0, NULL);
+    _beginthread(pipes_output_thread, 0, NULL);
     return 0;
 }
 
