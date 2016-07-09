@@ -1125,11 +1125,13 @@ int build_command_line(wchar_t *buffer, long buflen)
     if (!argv) {
         fprintf(stderr, "ERROR: (ansipipe) Could not parse command line.\n");
     }
-    int skip_len = wcslen(argv[0]) + 1;
+    int skip_len = wcslen(argv[0]);
     if (orig_command_line[0] == L'"') {
         // module name is quoted in command line: remove quotes too
         skip_len += 2;
     }
+    // remove leading spaces - one on XP, two on Win7
+    while (orig_command_line[skip_len] == L' ') ++skip_len;
     // copy original command line excluding module name into child command line
     wstr_write(&command_line, orig_command_line+skip_len, wcslen(orig_command_line)-skip_len);
 
