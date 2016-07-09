@@ -232,8 +232,6 @@ typedef struct {
 COORD onebyone = { 1, 1 };
 COORD origin = { 0, 0 };
 
-bool soft_suppress_stderr = false;
-
 void console_put_char(TERM *term, wchar_t s)
 {
     if (term->col >= term->width-1) {
@@ -610,8 +608,6 @@ void ansi_output(TERM *term, SEQUENCE es)
                     flags.icrnl = true;
                 else if (!wcscasecmp(es.args, L"ONLCR"))
                     flags.onlcr = true;
-                else if (!wcscasecmp(es.args, L"SUPPSTDERR"))
-                    soft_suppress_stderr = true;
                 break;
             case 254:
                 // ANSIpipe-only: ESC]254;%sBEL: unset terminal property
@@ -621,8 +617,6 @@ void ansi_output(TERM *term, SEQUENCE es)
                     flags.icrnl = false;
                 else if (!wcscasecmp(es.args, L"ONLCR"))
                     flags.onlcr = false;
-                else if (!wcscasecmp(es.args, L"SUPPSTDERR"))
-                    soft_suppress_stderr = false;
                 break;
         }
     }
@@ -1066,7 +1060,7 @@ int proc_spawn(wchar_t *cmd_line, PROCESS_INFORMATION *pinfo)
     sinfo.cb = sizeof(STARTUPINFO);
     if (!CreateProcess(NULL, cmd_line, NULL, NULL, FALSE,
                        CREATE_SUSPENDED, NULL, NULL, &sinfo, pinfo)) {
-        fprintf(stderr, "ERROR: Could not create process %S", cmd_line);
+        fprintf(stderr, "ERROR: Could not create process %S\n", cmd_line);
         return 1;
     }
     return 0;
@@ -1126,7 +1120,7 @@ int build_command_line(wchar_t *buffer, long buflen)
     int argc;
     wchar_t **argv = CommandLineToArgvW(orig_command_line, &argc);
     if (!argv) {
-        fprintf(stderr, "ERROR: Could not parse command line.");
+        fprintf(stderr, "ERROR: Could not parse command line.\n");
     }
     int skip_len = wcslen(argv[0]) + 1;
     if (orig_command_line[0] == L'"') {
