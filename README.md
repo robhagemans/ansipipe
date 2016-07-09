@@ -1,9 +1,10 @@
 ANSI|pipe
 ========
 
-**ANSI|pipe** is a small utility that provides no-hassle support for ANSI
-escape sequences and UTF-8 on Windows. It addresses three issues I encountered
-when porting Unix console applications to Windows:  
+**ANSI|pipe** is a small utility that enables you to build dual console/GUI
+applications for Windows with support for ANSI escape sequences and UTF-8.
+It addresses three issues I encountered when porting Unix console applications
+to Windows:  
 
 1.  Windows executables must be compiled as either a 'console' or a 'GUI'
     application. Thus, windowed applications either have an ugly console window
@@ -12,16 +13,14 @@ when porting Unix console applications to Windows:
 2.  The Windows command line does not recognise ANSI escape sequences. Any code
     that relies on escape sequences to prettify the console interface would need
     to be rewritten using OS-specific toolkits.  
-3.  Under modern Unix it is a safe bet that the console will understand
-    UTF-8, but in the Windows world UTF-16 is dominant. Even worse, the standard
-    Windows console still uses legacy codepages rather than Unicode by default.  
+3.  The Windows console uses legacy codepages by default; support for UTF-8
+    is particularly problematic.
 
-If your goal is just to maintain a Windows port of a utility you've written
-originally for the Unix world, digging into the Windows API is an unwelcome
-distraction.  
+**ANSI|pipe** allows you to solve all three issues in one go without needing to
+dig into the Windows API documentation. All you need to add to your
+project is a 24KiB executable and a 3KiB header file.
 
-**ANSI|pipe** solves all three issues in one go. All you need to add to your
-project is a 33KiB executable and a 3KiB header file.
+**ANSI|pipe** is free and open source software distributed under the Expat MIT licence.
 
 
 ## How to use it
@@ -48,8 +47,7 @@ It's as simple as:
         return 0;
     }
 
-The C header is self-contained and MIT-licensed, so there's no licence worries
-when linking it to your project. Apart from the C header, a Python module is also provided.
+Apart from the C header, a Python module is also provided.
 
 There are two ways to deploy it. One way:  
 
@@ -127,11 +125,11 @@ As for the launcher: the Windows shell gives preference to `.COM` over `.EXE`
 when globbing an executable, so that all command-line access to `MYAPP` will
 naturally be routed through ANSI|pipe if you've named the launcher `MYAPP.COM`.
 Meanwhile, any GUI access through the Start Menu or the File Manager
-can use `MYAPP.EXE` and avoid a console window. If ANSI|pipe sees its name ends
-in `.EXE`, it will take as its first argument the executable to run; if its name
-end in `.COM` it will look for the same name with an `.EXE` extension.
+can use `MYAPP.EXE` and avoid a console window. If ANSI|pipe sees that its name ends
+in `.EXE`, it will take the executable to run as its first argument; if its name
+ends in `.COM` it will look for an executable with the same name and an `.EXE` extension.
 
-The ANSI|pipe Lancher compiles to a 33k executable using MinGW GCC. It also
+The ANSI|pipe Lancher compiles to a 24k executable using MinGW GCC. It also
 compiles cleanly on Microsoft Visual C++.
 
 
@@ -153,7 +151,7 @@ me know.
 
 **Win32::Console::ANSI**, copyright (c) 2003-2014 J-L Morel.  
 **dualsubsystem**, copyright (c) `gaber...@gmail.com` and Richard Eperjesi.  
-**ANSI|pipe**, copyright (c) 2015 Rob Hagemans.  
+**ANSI|pipe**, copyright (c) 2015-2016 Rob Hagemans.  
 
 **ANSI|pipe** is free software, licensed under the [Expat MIT licence](http://opensource.org/licenses/MIT).  
 The GUI example is released under the [Microsoft Limited Public License](https://msdn.microsoft.com/en-us/cc300389.aspx).

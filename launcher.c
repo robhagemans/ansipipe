@@ -7,6 +7,9 @@ dualsubsystem
 The author is identified on Google Code as gaber...@gmail.com, https://code.google.com/u/112032256711997475328/.
 dualsubsystem is an update on a code written by Richard Eperjesi.
 
+ANSI|pipe
+Copyright 2015-2016 Rob Hagemans.
+
 Licensed under the Expat MIT licence.
 See LICENSE.md or http://opensource.org/licenses/mit-license.php
 */
