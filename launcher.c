@@ -727,7 +727,7 @@ int ansi_input(char *buffer, long *count)
                 }
                 // overflow check
                 if (wstr_write(&wstr, L"", 0) == NULL) {
-                    fprintf(stderr, "ERROR: Input buffer overflow.\n");
+                    fprintf(stderr, "ERROR: (ansipipe) Input buffer overflow.\n");
                     return 1;
                 }
                 if (flags.icrnl) {
@@ -742,7 +742,7 @@ int ansi_input(char *buffer, long *count)
     int length = WideCharToMultiByte(CP_UTF8, 0, wide_buffer, -1, NULL, 0, NULL, NULL);
     // safety check
     if (length >= IO_BUFLEN) {
-        fprintf(stderr, "ERROR: UTF-8 buffer overflow.\n");
+        fprintf(stderr, "ERROR: (ansipipe) UTF-8 buffer overflow.\n");
         return 1;
     }
     // convert to UTF-8
@@ -1029,7 +1029,7 @@ int pipes_start(PROCESS_INFORMATION pinfo)
 {
     // spawn child process in suspended mode and create pipes
     if (pipes_create(pinfo.dwProcessId) != 0) {
-        fprintf(stderr, "ERROR: Could not create named pipes.\n");
+        fprintf(stderr, "ERROR: (ansipipe) Could not create named pipes.\n");
         return 1;
     }
 
@@ -1063,7 +1063,7 @@ int proc_spawn(wchar_t *cmd_line, PROCESS_INFORMATION *pinfo)
     sinfo.cb = sizeof(STARTUPINFO);
     if (!CreateProcess(NULL, cmd_line, NULL, NULL, FALSE,
                        CREATE_SUSPENDED, NULL, NULL, &sinfo, pinfo)) {
-        fprintf(stderr, "ERROR: Could not create process %S\n", cmd_line);
+        fprintf(stderr, "ERROR: (ansipipe) Could not launch process %S\n", cmd_line);
         return 1;
     }
     return 0;
@@ -1123,7 +1123,7 @@ int build_command_line(wchar_t *buffer, long buflen)
     int argc;
     wchar_t **argv = CommandLineToArgvW(orig_command_line, &argc);
     if (!argv) {
-        fprintf(stderr, "ERROR: Could not parse command line.\n");
+        fprintf(stderr, "ERROR: (ansipipe) Could not parse command line.\n");
     }
     int skip_len = wcslen(argv[0]) + 1;
     if (orig_command_line[0] == L'"') {
@@ -1141,7 +1141,7 @@ int build_command_line(wchar_t *buffer, long buflen)
 
     // if the buffer is full, our command line is not ok
     if (!wstr_write(&command_line, L"", 0)) {
-        fprintf(stderr, "ERROR: Command line too long.\n");
+        fprintf(stderr, "ERROR: (ansipipe) Command line too long.\n");
         return 1;
     }
     return 0;
