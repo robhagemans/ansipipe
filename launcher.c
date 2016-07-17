@@ -304,6 +304,37 @@ void console_set_pos(TERM *term, int x, int y)
     SetConsoleCursorPosition(term->handle, pos);
 }
 
+void console_resize(HANDLE term_handle, int width, int height)
+{
+    CONSOLE_SCREEN_BUFFER_INFO buf_info;
+    GetConsoleScreenBufferInfo(handle_cout, &buf_info);
+    // SetConsoleScreenBufferSize can't make the buffer smaller than the window (in either direction)
+    // while SetConsoleWindowInfo can't make the window larger than the buffer (in either direction)
+    // to allow for both shrinking and growing, we need to call one of the functions twice, and resize
+    // each direction separately.
+    // first adjust only the width
+    COORD new_size;
+    new_size.X = width;
+    new_size.Y = buf_info.dwSize.Y;
+    SMALL_RECT new_screen;
+    new_screen.Top = 0;
+    new_screen.Left = 0;
+    new_screen.Bottom = buf_info.dwSize.Y - 1;
+    new_screen.Right = width - 1;
+    SetConsoleScreenBufferSize(term_handle, new_size);
+    SetConsoleWindowInfo(term_handle, true, &new_screen);
+    SetConsoleScreenBufferSize(term_handle, new_size);
+    // then adjust the height
+    new_size.X = width;
+    new_size.Y = height;
+    new_screen.Top = 0;
+    new_screen.Left = 0;
+    new_screen.Bottom = height - 1;
+    new_screen.Right = width - 1;
+    SetConsoleScreenBufferSize(term_handle, new_size);
+    SetConsoleWindowInfo(term_handle, true, &new_screen);
+    SetConsoleScreenBufferSize(term_handle, new_size);
+}
 
 // ============================================================================
 // ANSI sequences
@@ -575,20 +606,7 @@ void ansi_output(TERM *term, SEQUENCE es)
             //ESC[8;#;#;t resize terminal to # rows, # cols
             if (es.argc < 3) return;
             if (es.argv[0] != 8) return;
-            COORD new_size;
-            new_size.X = es.argv[2];
-            new_size.Y = es.argv[1];
-            SMALL_RECT new_screen;
-            new_screen.Top = 0;
-            new_screen.Left = 0;
-            new_screen.Bottom = es.argv[1] - 1;
-            new_screen.Right = es.argv[2] - 1;
-            SetConsoleScreenBufferSize(term->handle, new_size);
-            SetConsoleWindowInfo(term->handle, true, &new_screen);
-            // do it twice, because one call can only make the console bigger
-            // and the other call can only make it smaller. plus I am lazy.
-            SetConsoleScreenBufferSize(term->handle, new_size);
-            SetConsoleWindowInfo(term->handle, true, &new_screen);
+            console_resize(term->handle, es.argv[2], es.argv[1]);
             return;
         }
     }
@@ -1183,7 +1201,8 @@ int ansipipe_launcher(int argc, char *argv[], long *exit_code)
     /* restore console state */
     SetConsoleMode(handle_cin, save_mode);
     SetConsoleTextAttribute(handle_cout, save_console.wAttributes);
-    SetConsoleScreenBufferSize(handle_cout, save_console.dwSize);
+    console_resize(handle_cout, save_console.dwSize.X, save_console.dwSize.Y);
+    SetConsoleWindowInfo(handle_cout, true, &save_console.srWindow);
 
     /* exit and signal to caller that we've run as launcher */
     return 1;
