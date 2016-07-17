@@ -1121,17 +1121,17 @@ int build_command_line(wchar_t *buffer, long buflen)
     int module_len = wcslen(module_name);
     // write name of child executable to command line in quotes
     #ifdef ANSIPIPE_SINGLE
-    wstr_write(&command_line, L"""", 1);
+    wstr_write(&command_line, L"\"", 1);
     wstr_write(&command_line, module_name, module_len);
-    wstr_write(&command_line, L""" ", 2);
+    wstr_write(&command_line, L"\" ", 2);
     #else
     // call X.EXE if we're named X.COM
     // if we're X.EXE the first argument already is the child executable, so skip this step
     if (module_len > 4 && wcscasecmp(module_name + module_len - 4, L".exe")) {
         module_name[module_len-4] = 0;
-        wstr_write(&command_line, L"""", 1);
+        wstr_write(&command_line, L"\"", 1);
         wstr_write(&command_line, module_name, module_len-4);
-        wstr_write(&command_line, L".exe"" ", 6);
+        wstr_write(&command_line, L".exe\" ", 6);
     }
     #endif
     // input command line
