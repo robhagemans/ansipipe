@@ -4,7 +4,7 @@
  * to enable UTF-8, ANSI escape sequences and dual mode CLI/GUI executables
  * when compiling command-line applications for Windows
  *
- * based on DualModeI.cpp from dualsybsystem.
+ * based on DualModeI.cpp from dualsubsystem.
  * GNU C version (c) 2015 Rob Hagemans
  * Licensed under the Expat MIT licence.
  * See LICENSE.md or http://opensource.org/licenses/mit-license.php
@@ -12,6 +12,7 @@
 
 #ifndef ANSIPIPE_H
 #define ANSIPIPE_H
+
 
 #ifndef _WIN32
 
@@ -24,6 +25,17 @@ static int ansipipe_init() { return 0; };
 #include <windows.h>
 #include <stdio.h>
 #include <io.h>
+
+#ifdef BUILD_DLL
+// declarations to enable compilation as DLL
+//extern "C" __declspec(dllexport)
+#define EXPORT_DLL __declspec(dllexport)
+EXPORT_DLL void winsi_init();
+EXPORT_DLL void winsi_close();
+EXPORT_DLL long winsi_read(char *buffer, long req_count);
+EXPORT_DLL void winsi_write(char *buffer);
+
+#else
 
 #define ANSIPIPE_NAME_LEN 256
 #define ANSIPIPE_POUT_FMT L"\\\\.\\pipe\\ANSIPIPE_%d_POUT"
@@ -87,6 +99,6 @@ int ansipipe_launcher(int argc, char *argv[], long *exit_code);
             fprintf(stderr, "ERROR: Failed to initialise ANSI|pipe."); \
     } while(0)
 
-
+#endif
 #endif
 #endif

@@ -13,10 +13,13 @@ See LICENSE.md or http://opensource.org/licenses/mit-license.php
 
 #ifndef _WIN32
 
+#ifndef BUILD_DLL
 #ifndef ANSIPIPE_SINGLE
 int main() {}
 #endif
+#endif
 
+//_WIN32
 #else
 
 #define UNICODE
@@ -908,6 +911,7 @@ void parser_print(PARSER *p, char *s, int buflen)
 // ============================================================================
 // named pipes
 // ============================================================================
+#ifndef BUILD_DLL
 
 // pipe globals
 #define PIPES_TIMEOUT 1000
@@ -988,6 +992,7 @@ void pipes_cerr_thread(void *dummy)
     }
 }
 
+//SUPPRESS_STDERR
 #endif
 
 // Thread function that handles incoming bytestreams from stdin
@@ -1177,10 +1182,80 @@ int ansipipe_launcher(int argc, char *argv[], long *exit_code)
 #ifndef ANSIPIPE_SINGLE
 int main(int argc, char *argv[])
 {
-    long exit_code = 0;
-    ansipipe_launcher(argc, argv, &exit_code);
-    return exit_code;
+   long exit_code = 0;
+   ansipipe_launcher(argc, argv, &exit_code);
+   return exit_code;
 }
+//ANSIPIPE_SINGLE
 #endif
 
+//BUILD_DLL
+#endif
+
+// ============================================================================
+// DLL
+// ============================================================================
+
+#ifdef BUILD_DLL
+
+PARSER global_parser = { 0 };
+int global_is_console = 0;
+long global_save_mode;
+CONSOLE_SCREEN_BUFFER_INFO global_save_console;
+
+EXPORT_DLL void winsi_init() {
+    /* initialise globals */
+    // stdio handles
+    handle_cout = GetStdHandle(STD_OUTPUT_HANDLE);
+    handle_cin = GetStdHandle(STD_INPUT_HANDLE);
+    handle_cerr = GetStdHandle(STD_ERROR_HANDLE);
+
+    /* save initial console state */
+    GetConsoleScreenBufferInfo(handle_cout, &global_save_console);
+    GetConsoleMode(handle_cin, &global_save_mode);
+
+    // see http://stackoverflow.com/questions/1169591/check-if-output-is-redirected
+    long dummy_mode;
+    global_is_console = GetConsoleMode(handle_cout, &dummy_mode);
+    // prepare parser
+    parser_init(&global_parser, handle_cout);
+}
+
+EXPORT_DLL void winsi_close() {
+    /* restore console state */
+    SetConsoleMode(handle_cin, global_save_mode);
+    SetConsoleTextAttribute(handle_cout, global_save_console.wAttributes);
+    SetConsoleScreenBufferSize(handle_cout, global_save_console.dwSize);
+}
+
+EXPORT_DLL long winsi_read(char *buffer, long req_count) {
+    long count;
+    long countr = 0;
+    for (count = 0; count < req_count; count += countr) {
+        if (global_is_console) {
+            if (ansi_input(buffer+count, &countr) != 0)
+                break;
+        }
+        else {
+            // read directly from redirected stdin
+            if (!fgets(buffer+count, IO_BUFLEN, stdin))
+                break;
+            // fgets returns null-terminated string
+            countr = strlen(buffer+count);
+        }
+    }
+    buffer[count] = 0;
+    return count;
+}
+
+EXPORT_DLL void winsi_write(char *buffer) {
+    long count = strlen(buffer);
+    if (global_is_console) parser_print(&global_parser, buffer, count);
+    else printf("%s", buffer);
+}
+
+//BUILD_DLL
+#endif
+
+//WIN32
 #endif

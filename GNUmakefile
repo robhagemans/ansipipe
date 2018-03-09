@@ -4,6 +4,10 @@ ifeq ($(OS),Windows_NT)
 launcher: launcher.c
 	gcc -s launcher.c -o launcher
 
+winsi: launcher.c
+	gcc -c launcher.c -o winsi.o -DBUILD_DLL
+	gcc -shared -s -o winsi.dll winsi.o -Wl,--out-implib,libwinsi.dll.a
+
 example-c: example.c ansipipe.h launcher
 	gcc -s example.c -o example-c
 	cp launcher.exe example-c.com
