@@ -7,6 +7,9 @@ dualsubsystem
 The author is identified on Google Code as gaber...@gmail.com, https://code.google.com/u/112032256711997475328/.
 dualsubsystem is an update on a code written by Richard Eperjesi.
 
+ANSI|pipe
+Copyright 2015-2018 Rob Hagemans.
+
 Licensed under the Expat MIT licence.
 See LICENSE.md or http://opensource.org/licenses/mit-license.php
 */
@@ -25,6 +28,7 @@ int main() {}
 #define UNICODE
 #define _WIN32_WINNT 0x0500
 #include <windows.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <process.h>
 #include <string.h>
@@ -228,18 +232,15 @@ typedef struct {
     int height;
     int attr;
     HANDLE handle;
-    wchar_t hold;
     int end;
 } TERM;
 
 COORD onebyone = { 1, 1 };
 COORD origin = { 0, 0 };
 
-bool soft_suppress_stderr = false;
-
 void console_put_char(TERM *term, wchar_t s)
 {
-    if (!term->hold & term->row == term->height-1 && term->col == term->width-1) {
+    if (term->col >= term->width-1 && s != L'\n') {
         // do not advance cursor if we're on the last position of the
         // screen buffer, to avoid unwanted scrolling.
         SMALL_RECT dest = { term->col, term->row, term->col, term->row };
@@ -247,10 +248,8 @@ void console_put_char(TERM *term, wchar_t s)
         ch.Char.UnicodeChar = s;
         ch.Attributes = term->attr;
         WriteConsoleOutput(term->handle, &ch, onebyone, origin, &dest);
-        term->hold = s;
     }
     else {
-        term->hold = 0;
         long written;
         WriteConsole(term->handle, &s, 1, &written, NULL);
     }
@@ -308,6 +307,37 @@ void console_set_pos(TERM *term, int x, int y)
     SetConsoleCursorPosition(term->handle, pos);
 }
 
+void console_resize(HANDLE term_handle, int width, int height)
+{
+    CONSOLE_SCREEN_BUFFER_INFO buf_info;
+    GetConsoleScreenBufferInfo(handle_cout, &buf_info);
+    // SetConsoleScreenBufferSize can't make the buffer smaller than the window (in either direction)
+    // while SetConsoleWindowInfo can't make the window larger than the buffer (in either direction)
+    // to allow for both shrinking and growing, we need to call one of the functions twice, and resize
+    // each direction separately.
+    // first adjust only the width
+    COORD new_size;
+    new_size.X = width;
+    new_size.Y = buf_info.dwSize.Y;
+    SMALL_RECT new_screen;
+    new_screen.Top = 0;
+    new_screen.Left = 0;
+    new_screen.Bottom = buf_info.dwSize.Y - 1;
+    new_screen.Right = width - 1;
+    SetConsoleScreenBufferSize(term_handle, new_size);
+    SetConsoleWindowInfo(term_handle, true, &new_screen);
+    SetConsoleScreenBufferSize(term_handle, new_size);
+    // then adjust the height
+    new_size.X = width;
+    new_size.Y = height;
+    new_screen.Top = 0;
+    new_screen.Left = 0;
+    new_screen.Bottom = height - 1;
+    new_screen.Right = width - 1;
+    SetConsoleScreenBufferSize(term_handle, new_size);
+    SetConsoleWindowInfo(term_handle, true, &new_screen);
+    SetConsoleScreenBufferSize(term_handle, new_size);
+}
 
 // ============================================================================
 // ANSI sequences
@@ -579,20 +609,7 @@ void ansi_output(TERM *term, SEQUENCE es)
             //ESC[8;#;#;t resize terminal to # rows, # cols
             if (es.argc < 3) return;
             if (es.argv[0] != 8) return;
-            COORD new_size;
-            new_size.X = es.argv[2];
-            new_size.Y = es.argv[1];
-            SMALL_RECT new_screen;
-            new_screen.Top = 0;
-            new_screen.Left = 0;
-            new_screen.Bottom = es.argv[1] - 1;
-            new_screen.Right = es.argv[2] - 1;
-            SetConsoleScreenBufferSize(term->handle, new_size);
-            SetConsoleWindowInfo(term->handle, true, &new_screen);
-            // do it twice, because one call can only make the console bigger
-            // and the other call can only make it smaller. plus I am lazy.
-            SetConsoleScreenBufferSize(term->handle, new_size);
-            SetConsoleWindowInfo(term->handle, true, &new_screen);
+            console_resize(term->handle, es.argv[2], es.argv[1]);
             return;
         }
     }
@@ -615,8 +632,6 @@ void ansi_output(TERM *term, SEQUENCE es)
                     flags.icrnl = true;
                 else if (!wcscasecmp(es.args, L"ONLCR"))
                     flags.onlcr = true;
-                else if (!wcscasecmp(es.args, L"SUPPSTDERR"))
-                    soft_suppress_stderr = true;
                 break;
             case 254:
                 // ANSIpipe-only: ESC]254;%sBEL: unset terminal property
@@ -626,8 +641,6 @@ void ansi_output(TERM *term, SEQUENCE es)
                     flags.icrnl = false;
                 else if (!wcscasecmp(es.args, L"ONLCR"))
                     flags.onlcr = false;
-                else if (!wcscasecmp(es.args, L"SUPPSTDERR"))
-                    soft_suppress_stderr = false;
                 break;
         }
     }
@@ -735,7 +748,7 @@ int ansi_input(char *buffer, long *count)
                 }
                 // overflow check
                 if (wstr_write(&wstr, L"", 0) == NULL) {
-                    fprintf(stderr, "ERROR: Input buffer overflow.\n");
+                    fprintf(stderr, "ERROR: (ansipipe) Input buffer overflow.\n");
                     return 1;
                 }
                 if (flags.icrnl) {
@@ -750,7 +763,7 @@ int ansi_input(char *buffer, long *count)
     int length = WideCharToMultiByte(CP_UTF8, 0, wide_buffer, -1, NULL, 0, NULL, NULL);
     // safety check
     if (length >= IO_BUFLEN) {
-        fprintf(stderr, "ERROR: UTF-8 buffer overflow.\n");
+        fprintf(stderr, "ERROR: (ansipipe) UTF-8 buffer overflow.\n");
         return 1;
     }
     // convert to UTF-8
@@ -943,60 +956,71 @@ int pipes_create(long pid)
     return 0;
 }
 
-// Thread function that handles incoming bytestreams to be output on stdout
-void pipes_cout_thread(void *dummy)
+// handle incoming pipes to be output on stdout or stderr
+void pipes_output_thread(void *dummy)
 {
+    // check if we're on a console or being redirected
     // see http://stackoverflow.com/questions/1169591/check-if-output-is-redirected
     long dummy_mode;
-    int is_console = GetConsoleMode(handle_cout, &dummy_mode);
-    // prepare parser
-    PARSER p = { 0 };
-    parser_init(&p, handle_cout);
+    int is_console_cout = GetConsoleMode(handle_cout, &dummy_mode);
+    int is_console_cerr = GetConsoleMode(handle_cerr, &dummy_mode);
+    // connect to named pipes
     ConnectNamedPipe(cout_pipe, NULL);
-    // we're sending UTF-8 through these pipes
-    char buffer[IO_BUFLEN];
-    long count = 0;
-    while (ReadFile(cout_pipe, buffer, IO_BUFLEN-1, &count, NULL)) {
-        buffer[count] = 0;
-        if (is_console) parser_print(&p, buffer, IO_BUFLEN);
-        else printf("%s", buffer);
-    }
-}
-
-#ifdef SUPPRESS_STDERR
-
-void pipes_cerr_thread(void *dummy) {}
-
-#else
-
-// Thread function that handles incoming bytestreams to be outputed on stderr
-void pipes_cerr_thread(void *dummy)
-{
-    // see http://stackoverflow.com/questions/1169591/check-if-output-is-redirected
-    long dummy_mode;
-    int is_console = GetConsoleMode(handle_cout, &dummy_mode);
-    // prepare parser
-    PARSER p = { 0 };
-    parser_init(&p, handle_cerr);
     ConnectNamedPipe(cerr_pipe, NULL);
-    // we're sending UTF-8 through these pipes
+    // prepare parsers
+    PARSER pout = { 0 };
+    PARSER perr = { 0 };
+    parser_init(&pout, handle_cout);
+    parser_init(&perr, handle_cerr);
+    // read buffer
     char buffer[IO_BUFLEN];
     long count = 0;
-    while (ReadFile(cerr_pipe, buffer, IO_BUFLEN-1, &count, NULL)) {
-        buffer[count] = 0;
-        // for suppressed stderr, read the file but just ignore the contents
-        if (!soft_suppress_stderr) {
-            if (is_console) parser_print(&p, buffer, IO_BUFLEN);
-            else fprintf(stderr, "%s", buffer);
+    bool cout_alive = true;
+    bool cerr_alive = true;
+    // read from stdout and stderr alternatively until exhausted
+    // in one thread to avoid them racing for console output
+    while (cout_alive && cerr_alive) {
+        // read from stdout if not closed and available
+        if (cout_alive) {
+            for(;;) {
+                long len = 0;
+                PeekNamedPipe(cout_pipe, NULL, 0, NULL, &len, NULL);
+                if (!len) {
+                    // microsleep to allow the pipe to fill
+                    usleep(1);
+                    break;
+                }
+                cout_alive = ReadFile(cout_pipe, buffer, IO_BUFLEN-1, &count, NULL);
+                if (cout_alive) {
+                    buffer[count] = 0;
+                    if (is_console_cout) parser_print(&pout, buffer, IO_BUFLEN);
+                    else printf("%s", buffer);
+                }
+            }
+        }
+        // read from stderr if not closed and available
+        if (cerr_alive) {
+            for(;;) {
+                long len = 0;
+                PeekNamedPipe(cerr_pipe, NULL, 0, NULL, &len, NULL);
+                if (!len) {
+                    // microsleep to allow the pipe to fill
+                    usleep(1);
+                    break;
+                }
+                cerr_alive = ReadFile(cerr_pipe, buffer, IO_BUFLEN-1, &count, NULL);
+                if (cerr_alive) {
+                    buffer[count] = 0;
+                    if (is_console_cerr) parser_print(&perr, buffer, IO_BUFLEN);
+                    else fprintf(stderr, "%s", buffer);
+                }
+            }
         }
     }
 }
 
-//SUPPRESS_STDERR
-#endif
-
-// Thread function that handles incoming bytestreams from stdin
-void pipes_cin_thread(void *dummy)
+// handle input from stdin and send to outgoing pipe
+void pipes_input_thread(void *dummy)
 {
     // see http://stackoverflow.com/questions/1169591/check-if-output-is-redirected
     long dummy_mode;
@@ -1027,7 +1051,7 @@ int pipes_start(PROCESS_INFORMATION pinfo)
 {
     // spawn child process in suspended mode and create pipes
     if (pipes_create(pinfo.dwProcessId) != 0) {
-        fprintf(stderr, "ERROR: Could not create named pipes.\n");
+        fprintf(stderr, "ERROR: (ansipipe) Could not create named pipes.\n");
         return 1;
     }
 
@@ -1035,9 +1059,8 @@ int pipes_start(PROCESS_INFORMATION pinfo)
     SetConsoleMode(handle_cin, 0);
 
     // start the pipe threads
-    _beginthread(pipes_cin_thread, 0, NULL);
-    _beginthread(pipes_cout_thread, 0, NULL);
-    _beginthread(pipes_cerr_thread, 0, NULL);
+    _beginthread(pipes_input_thread, 0, NULL);
+    _beginthread(pipes_output_thread, 0, NULL);
     return 0;
 }
 
@@ -1062,7 +1085,7 @@ int proc_spawn(wchar_t *cmd_line, PROCESS_INFORMATION *pinfo)
     sinfo.cb = sizeof(STARTUPINFO);
     if (!CreateProcess(NULL, cmd_line, NULL, NULL, FALSE,
                        CREATE_SUSPENDED, NULL, NULL, &sinfo, pinfo)) {
-        fprintf(stderr, "ERROR: Could not create process %S", cmd_line);
+        fprintf(stderr, "ERROR: (ansipipe) Could not launch process %S\n", cmd_line);
         return 1;
     }
     return 0;
@@ -1084,15 +1107,13 @@ void proc_join(PROCESS_INFORMATION pinfo, long *exit_code)
 
 // buffer for command-line arguments to child process. Win32 max is 8K
 #define ARG_BUFLEN 8192
-// max length of single argument. Twice MAX_PATH (260) seems long enough.
-#define CONV_BUFLEN 512
 
 // self-call command line flag
 #define STR_SELFCALL "ANSIPIPE_SELF_CALL"
 #define WSTR_SELFCALL L"ANSIPIPE_SELF_CALL"
 
 // create command line for child process
-int build_command_line(int argc, char *argv[], wchar_t *buffer, long buflen)
+int build_command_line(wchar_t *buffer, long buflen)
 {
     // start with empty string
     WSTR command_line = wstr_create_empty(buffer, buflen);
@@ -1102,38 +1123,49 @@ int build_command_line(int argc, char *argv[], wchar_t *buffer, long buflen)
     // not null-terminated on XP
     module_name[MAX_PATH] = 0;
     int module_len = wcslen(module_name);
+    // write name of child executable to command line in quotes
     #ifdef ANSIPIPE_SINGLE
+    wstr_write(&command_line, L"\"", 1);
     wstr_write(&command_line, module_name, module_len);
-    wstr_write(&command_line, L" ", 1);
+    wstr_write(&command_line, L"\" ", 2);
     #else
-    // only call X.EXE if we're named X.COM
-    // if we're an EXE the first argument is the child executable, so skip this
+    // call X.EXE if we're named X.COM
+    // if we're X.EXE the first argument already is the child executable, so skip this step
     if (module_len > 4 && wcscasecmp(module_name + module_len - 4, L".exe")) {
         module_name[module_len-4] = 0;
+        wstr_write(&command_line, L"\"", 1);
         wstr_write(&command_line, module_name, module_len-4);
-        wstr_write(&command_line, L".exe ", 5);
+        wstr_write(&command_line, L".exe\" ", 6);
     }
     #endif
-    // write all arguments to child command line
-    int i = 0;
-    wchar_t wide_buffer[CONV_BUFLEN+1];
-    for (i = 1; i < argc; ++i) {
-        // convert UTF-8 -> UTF-16. length includes NUL.
-        long length = MultiByteToWideChar(CP_UTF8, 0, argv[i], -1, wide_buffer, CONV_BUFLEN);
-        if (!length) {
-            fprintf(stderr, "ERROR: Command line argument too long.\n");
-            return 1;
-        }
-        wstr_write(&command_line, wide_buffer, length-1);
-        wstr_write(&command_line, L" ", 1);
+    // input command line
+    wchar_t *orig_command_line;
+    orig_command_line = GetCommandLineW();
+    // find length of first argument including quotes, if any
+    int argc;
+    wchar_t **argv = CommandLineToArgvW(orig_command_line, &argc);
+    if (!argv) {
+        fprintf(stderr, "ERROR: (ansipipe) Could not parse command line.\n");
     }
+    int skip_len = wcslen(argv[0]);
+    if (orig_command_line[0] == L'"') {
+        // module name is quoted in command line: remove quotes too
+        skip_len += 2;
+    }
+    // remove leading spaces - one on XP, two on Win7
+    while (orig_command_line[skip_len] == L' ') ++skip_len;
+    // copy original command line excluding module name into child command line
+    wstr_write(&command_line, orig_command_line+skip_len, wcslen(orig_command_line)-skip_len);
+
     #ifdef ANSIPIPE_SINGLE
+    // write the self-call flag
+    wstr_write(&command_line, L" ", 1);
     wstr_write(&command_line, WSTR_SELFCALL, wcslen(WSTR_SELFCALL));
     #endif
 
     // if the buffer is full, our command line is not ok
     if (!wstr_write(&command_line, L"", 0)) {
-        fprintf(stderr, "ERROR: Command line too long.\n");
+        fprintf(stderr, "ERROR: (ansipipe) Command line too long.\n");
         return 1;
     }
     return 0;
@@ -1163,7 +1195,7 @@ int ansipipe_launcher(int argc, char *argv[], long *exit_code)
     /* open, run, and close */
     wchar_t cmd_line[ARG_BUFLEN];
     PROCESS_INFORMATION pinfo;
-    if (build_command_line(argc, argv, cmd_line, ARG_BUFLEN) == 0 &&
+    if (build_command_line(cmd_line, ARG_BUFLEN) == 0 &&
                 proc_spawn(cmd_line, &pinfo) == 0 &&
                 pipes_start(pinfo) == 0) {
         proc_join(pinfo, exit_code);
@@ -1173,7 +1205,8 @@ int ansipipe_launcher(int argc, char *argv[], long *exit_code)
     /* restore console state */
     SetConsoleMode(handle_cin, save_mode);
     SetConsoleTextAttribute(handle_cout, save_console.wAttributes);
-    SetConsoleScreenBufferSize(handle_cout, save_console.dwSize);
+    console_resize(handle_cout, save_console.dwSize.X, save_console.dwSize.Y);
+    SetConsoleWindowInfo(handle_cout, true, &save_console.srWindow);
 
     /* exit and signal to caller that we've run as launcher */
     return 1;

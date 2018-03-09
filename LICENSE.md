@@ -1,6 +1,6 @@
 Licence terms for ANSI|pipe
 ============================
-ANSI|pipe copyright (c) 2015 Rob Hagemans.  
+ANSI|pipe copyright (c) 2015-2018 Rob Hagemans.  
 Win32::Console::ANSI copyright (c) 2003-2014 J-L Morel.  
 dualsubsystem copyright (c) gaber...@gmail.com and Richard Eperjesi.  
 
