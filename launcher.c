@@ -657,6 +657,15 @@ int ansi_input(char *buffer, long *count)
     // plus one char for NUL.
     wchar_t wide_buffer[IO_BUFLEN];
     WSTR wstr = wstr_create_empty(wide_buffer, IO_BUFLEN);
+    void emit_char(c) {
+        wstr_write_char(&wstr, c);
+        if (flags.echo) {
+            if (c == L'\r')
+                printf("\n");
+            else
+                printf("%lc", c);
+        }
+    };
     INPUT_RECORD events[(IO_BUFLEN-1)/5];
     long ecount;
     if (!ReadConsoleInput(handle_cin, events, (IO_BUFLEN-1)/5, &ecount))
@@ -669,92 +678,88 @@ int ansi_input(char *buffer, long *count)
                 if (events[i].Event.KeyEvent.wVirtualKeyCode == VK_MENU) {
                     // key-up event for unicode Alt+HEX input
                     c = events[i].Event.KeyEvent.uChar.UnicodeChar;
-                    wstr_write_char(&wstr, c);
-                    if (flags.echo) {
-                        if (c == L'\r')
-                            printf("\n");
-                        else
-                            printf("%lc", c);
-                    }
+                    emit_char(c);
                 }
             }
             else {
-                // insert ansi escape codes for arrow keys etc.
-                switch (events[i].Event.KeyEvent.wVirtualKeyCode) {
-                case VK_PRIOR:
-                    wstr_write(&wstr, L"\x1b[5~", 4);
-                    break;
-                case VK_NEXT:
-                    wstr_write(&wstr, L"\x1b[6~", 4);
-                    break;
-                case VK_END:
-                    wstr_write(&wstr, L"\x1bOF", 3);
-                    break;
-                case VK_HOME:
-                    wstr_write(&wstr, L"\x1bOH", 3);
-                    break;
-                case VK_LEFT:
-                    wstr_write(&wstr, L"\x1b[D", 3);
-                    break;
-                case VK_UP:
-                    wstr_write(&wstr, L"\x1b[A", 3);
-                    break;
-                case VK_RIGHT:
-                    wstr_write(&wstr, L"\x1b[C", 3);
-                    break;
-                case VK_DOWN:
-                    wstr_write(&wstr, L"\x1b[B", 3);
-                    break;
-                case VK_INSERT:
-                    wstr_write(&wstr, L"\x1b[2~", 4);
-                    break;
-                case VK_DELETE:
-                    wstr_write(&wstr, L"\x1b[3~", 4);
-                    break;
-                case VK_F1:
-                    wstr_write(&wstr, L"\x1bOP", 3);
-                    break;
-                case VK_F2:
-                    wstr_write(&wstr, L"\x1bOQ", 3);
-                    break;
-                case VK_F3:
-                    wstr_write(&wstr, L"\x1bOR", 3);
-                    break;
-                case VK_F4:
-                    wstr_write(&wstr, L"\x1bOS", 3);
-                    break;
-                case VK_F5:
-                    wstr_write(&wstr, L"\x1b[15~", 5);
-                    break;
-                case VK_F6:
-                    wstr_write(&wstr, L"\x1b[17~", 5);
-                    break;
-                case VK_F7:
-                    wstr_write(&wstr, L"\x1b[18~", 5);
-                    break;
-                case VK_F8:
-                    wstr_write(&wstr, L"\x1b[19~", 5);
-                    break;
-                case VK_F9:
-                    wstr_write(&wstr, L"\x1b[20~", 5);
-                    break;
-                case VK_F10:
-                    wstr_write(&wstr, L"\x1b[21~", 5);
-                    break;
-                case VK_F11:
-                    wstr_write(&wstr, L"\x1b[23~", 5);
-                    break;
-                case VK_F12:
-                    wstr_write(&wstr, L"\x1b[24~", 5);
-                    break;
-                default:
+                if (events[i].Event.KeyEvent.dwControlKeyState & 0xf) {
+                    // ctrl or alt are down; don't parse arrow keys etc.
+                    // but if any unicode is produced, send it on
                     c = events[i].Event.KeyEvent.uChar.UnicodeChar;
-                    wstr_write_char(&wstr, c);
-                    if (flags.echo) {
-                        if (c == L'\r')
-                            printf("\n");
-                        else
-                            printf("%lc", c);
+                    emit_char(c);
+                }
+                else {
+                    // insert ansi escape codes for arrow keys etc.
+                    switch (events[i].Event.KeyEvent.wVirtualKeyCode) {
+                    case VK_PRIOR:
+                        wstr_write(&wstr, L"\x1b[5~", 4);
+                        break;
+                    case VK_NEXT:
+                        wstr_write(&wstr, L"\x1b[6~", 4);
+                        break;
+                    case VK_END:
+                        wstr_write(&wstr, L"\x1bOF", 3);
+                        break;
+                    case VK_HOME:
+                        wstr_write(&wstr, L"\x1bOH", 3);
+                        break;
+                    case VK_LEFT:
+                        wstr_write(&wstr, L"\x1b[D", 3);
+                        break;
+                    case VK_UP:
+                        wstr_write(&wstr, L"\x1b[A", 3);
+                        break;
+                    case VK_RIGHT:
+                        wstr_write(&wstr, L"\x1b[C", 3);
+                        break;
+                    case VK_DOWN:
+                        wstr_write(&wstr, L"\x1b[B", 3);
+                        break;
+                    case VK_INSERT:
+                        wstr_write(&wstr, L"\x1b[2~", 4);
+                        break;
+                    case VK_DELETE:
+                        wstr_write(&wstr, L"\x1b[3~", 4);
+                        break;
+                    case VK_F1:
+                        wstr_write(&wstr, L"\x1bOP", 3);
+                        break;
+                    case VK_F2:
+                        wstr_write(&wstr, L"\x1bOQ", 3);
+                        break;
+                    case VK_F3:
+                        wstr_write(&wstr, L"\x1bOR", 3);
+                        break;
+                    case VK_F4:
+                        wstr_write(&wstr, L"\x1bOS", 3);
+                        break;
+                    case VK_F5:
+                        wstr_write(&wstr, L"\x1b[15~", 5);
+                        break;
+                    case VK_F6:
+                        wstr_write(&wstr, L"\x1b[17~", 5);
+                        break;
+                    case VK_F7:
+                        wstr_write(&wstr, L"\x1b[18~", 5);
+                        break;
+                    case VK_F8:
+                        wstr_write(&wstr, L"\x1b[19~", 5);
+                        break;
+                    case VK_F9:
+                        wstr_write(&wstr, L"\x1b[20~", 5);
+                        break;
+                    case VK_F10:
+                        wstr_write(&wstr, L"\x1b[21~", 5);
+                        break;
+                    case VK_F11:
+                        wstr_write(&wstr, L"\x1b[23~", 5);
+                        break;
+                    case VK_F12:
+                        wstr_write(&wstr, L"\x1b[24~", 5);
+                        break;
+                    default:
+                        c = events[i].Event.KeyEvent.uChar.UnicodeChar;
+                        emit_char(c);
                     }
                 }
                 // overflow check
