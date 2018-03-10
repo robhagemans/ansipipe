@@ -655,8 +655,6 @@ int ansi_input(char *buffer, long *count)
     // -  escape codes are at most 5 ascii-128 wchars; translate into 5 chars
     // so buflen/5 events should fit in buflen wchars and buflen utf8 chars.
     // plus one char for NUL.
-//    long buflen = IO_BUFLEN;
-//    long events_len = (buflen-1)/5;
     wchar_t wide_buffer[IO_BUFLEN];
     WSTR wstr = wstr_create_empty(wide_buffer, IO_BUFLEN);
     INPUT_RECORD events[(IO_BUFLEN-1)/5];
@@ -667,7 +665,20 @@ int ansi_input(char *buffer, long *count)
     wchar_t c;
     for (i = 0; i < ecount; ++i) {
         if (events[i].EventType == KEY_EVENT) {
-            if (events[i].Event.KeyEvent.bKeyDown) {
+            if (!events[i].Event.KeyEvent.bKeyDown) {
+                if (events[i].Event.KeyEvent.wVirtualKeyCode == VK_MENU) {
+                    // key-up event for unicode Alt+HEX input
+                    c = events[i].Event.KeyEvent.uChar.UnicodeChar;
+                    wstr_write_char(&wstr, c);
+                    if (flags.echo) {
+                        if (c == L'\r')
+                            printf("\n");
+                        else
+                            printf("%lc", c);
+                    }
+                }
+            }
+            else {
                 // insert ansi escape codes for arrow keys etc.
                 switch (events[i].Event.KeyEvent.wVirtualKeyCode) {
                 case VK_PRIOR:
